@@ -1,56 +1,67 @@
-import { generateToken } from "../lib/utils.js";
-import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
-import cloudinary from "../lib/cloudinary.js";
+import jwt from "jsonwebtoken";
 
-export const signup = async (req, res) => {
-  const { fullName, email, password } = req.body;
+import cloudinary from "../lib/cloudinary.js";
+import {
+  clearAuthCookies,
+  generateAuthTokens,
+  setAuthCookies,
+} from "../lib/utils.js";
+import User from "../models/user.model.js";
+
+const sanitizeUser = (user) => ({
+  _id: user._id,
+  fullName: user.fullName,
+  email: user.email,
+  profilePic: user.profilePic,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
+
+export const signup = async (req, res, next) => {
   try {
-    if (!fullName || !email || !password) { //if any of the fields are missing, return an error response
+    const { fullName, email, password } = req.body;
+
+    if (!fullName?.trim() || !email?.trim() || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    if (password.length < 12) { //if the password is less than 12 characters, return an error response, we want to enforce strong passwords for better security
+    if (password.length < 12) {
       return res.status(400).json({ message: "Password must be at least 12 characters" });
     }
 
-    const user = await User.findOne({ email });
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
-    if (user) return res.status(400).json({ message: "Email already exists" });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-    const salt = await bcrypt.genSalt(10); //generates salt for hashing the password, 10 is the number of rounds for generating salt, higher means more secure but slower
-    const hashedPassword = await bcrypt.hash(password, salt); //hashes the password using the generated salt, this is a one-way function, you cannot get the original password back from the hashed password, this is why we store hashed passwords in the database for security reasons
-
-    const newUser = new User({
-      fullName,
-      email,
+    const newUser = await User.create({
+      fullName: fullName.trim(),
+      email: email.trim().toLowerCase(),
       password: hashedPassword,
     });
 
-    if (newUser) {
-      // generate jwt token here
-      generateToken(newUser._id, res);
-      await newUser.save();
+    const tokens = generateAuthTokens(newUser._id);
+    setAuthCookies(res, tokens);
 
-      res.status(201).json({
-        _id: newUser._id,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        profilePic: newUser.profilePic,
-      });
-    } else {
-      res.status(400).json({ message: "Invalid user data" });
-    }
+    res.status(201).json(sanitizeUser(newUser));
   } catch (error) {
-    console.log("Error in signup controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    next(error);
   }
 };
 
-export const login = async (req, res) => {
-  const { email, password } = req.body;
+export const login = async (req, res, next) => {
   try {
-    const user = await User.findOne({ email });
+    const { email, password } = req.body;
+
+    if (!email?.trim() || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -61,31 +72,25 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    generateToken(user._id, res);
+    const tokens = generateAuthTokens(user._id);
+    setAuthCookies(res, tokens);
 
-    res.status(200).json({
-      _id: user._id,
-      fullName: user.fullName,
-      email: user.email,
-      profilePic: user.profilePic,
-    });
+    res.status(200).json(sanitizeUser(user));
   } catch (error) {
-    console.log("Error in login controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    next(error);
   }
 };
 
-export const logout = (req, res) => {
+export const logout = (req, res, next) => {
   try {
-    res.cookie("jwt", "", { maxAge: 0 });
+    clearAuthCookies(res);
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log("Error in logout controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    next(error);
   }
 };
 
-export const updateProfile = async (req, res) => {
+export const updateProfile = async (req, res, next) => {
   try {
     const { profilePic } = req.body;
     const userId = req.user._id;
@@ -96,23 +101,47 @@ export const updateProfile = async (req, res) => {
 
     const uploadResponse = await cloudinary.uploader.upload(profilePic);
     const updatedUser = await User.findByIdAndUpdate(
-      userId, 
+      userId,
       { profilePic: uploadResponse.secure_url },
       { new: true }
-    );
+    ).select("-password");
 
     res.status(200).json(updatedUser);
   } catch (error) {
-    console.log("error in update profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    next(error);
   }
 };
 
 export const checkAuth = (req, res) => {
+  res.status(200).json(req.user);
+};
+
+export const refreshTokenController = async (req, res, next) => {
   try {
-    res.status(200).json(req.user);
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const user = await User.findById(decoded.userId).select("-password");
+
+    if (!user) {
+      clearAuthCookies(res);
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const tokens = generateAuthTokens(user._id);
+    setAuthCookies(res, tokens);
+
+    res.status(200).json(sanitizeUser(user));
   } catch (error) {
-    console.log("Error in checkAuth controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      clearAuthCookies(res);
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    next(error);
   }
 };

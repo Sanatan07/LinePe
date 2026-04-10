@@ -1,37 +1,93 @@
-import { Server } from "socket.io";
-import http from "http";
+import dotenv from "dotenv";
 import express from "express";
+import http from "http";
+import jwt from "jsonwebtoken";
+import { Server } from "socket.io";
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
 
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173"],
+    origin: [clientUrl],
+    credentials: true,
   },
 });
 
-export function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
+const userSocketMap = new Map();
+
+const parseCookies = (cookieHeader = "") =>
+  cookieHeader.split(";").reduce((cookies, rawCookie) => {
+    const [name, ...valueParts] = rawCookie.trim().split("=");
+
+    if (!name) {
+      return cookies;
+    }
+
+    cookies[name] = decodeURIComponent(valueParts.join("="));
+    return cookies;
+  }, {});
+
+const getSocketIdsForUser = (userId) => {
+  const socketIds = userSocketMap.get(userId);
+  return socketIds ? Array.from(socketIds) : [];
+};
+
+const emitOnlineUsers = () => {
+  io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
+};
+
+export function getReceiverSocketIds(userId) {
+  return getSocketIdsForUser(String(userId));
 }
 
-// used to store online users
-const userSocketMap = {}; // {userId: socketId}
+io.use((socket, next) => {
+  try {
+    const cookies = parseCookies(socket.handshake.headers.cookie);
+    const accessToken = cookies.accessToken;
+
+    if (!accessToken) {
+      return next(new Error("Unauthorized"));
+    }
+
+    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+    socket.user = { userId: String(decoded.userId) };
+
+    next();
+  } catch (error) {
+    next(new Error("Unauthorized"));
+  }
+});
 
 io.on("connection", (socket) => {
-  console.log("A user connected", socket.id);
+  const { userId } = socket.user;
+  console.log("Authenticated socket connected", socket.id, userId);
 
-  const userId = socket.handshake.query.userId;
-  if (userId) userSocketMap[userId] = socket.id;
+  const existingSockets = userSocketMap.get(userId) || new Set();
+  existingSockets.add(socket.id);
+  userSocketMap.set(userId, existingSockets);
 
-  // io.emit() is used to send events to all the connected clients
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  emitOnlineUsers();
 
   socket.on("disconnect", () => {
-    console.log("A user disconnected", socket.id);
-    delete userSocketMap[userId];
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+    console.log("Authenticated socket disconnected", socket.id, userId);
+
+    const socketsForUser = userSocketMap.get(userId);
+    if (socketsForUser) {
+      socketsForUser.delete(socket.id);
+
+      if (socketsForUser.size === 0) {
+        userSocketMap.delete(userId);
+      } else {
+        userSocketMap.set(userId, socketsForUser);
+      }
+    }
+
+    emitOnlineUsers();
   });
 });
 
-export { io, app, server };
+export { app, io, server };
