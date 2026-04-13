@@ -3,6 +3,8 @@ import { useChatStore } from "../store/useChatStore";
 import { Image, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 
+const MAX_MESSAGE_LENGTH = 2000;
+
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
@@ -11,6 +13,8 @@ const MessageInput = () => {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
+    if (!file) return;
+
     if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
@@ -30,11 +34,18 @@ const MessageInput = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!text.trim() && !imagePreview) return;
+    const trimmedText = text.trim();
+
+    if (!trimmedText && !imagePreview) return;
+
+    if (trimmedText.length > MAX_MESSAGE_LENGTH) {
+      toast.error(`Message must be ${MAX_MESSAGE_LENGTH} characters or less`);
+      return;
+    }
 
     try {
       await sendMessage({
-        text: text.trim(),
+        text: trimmedText,
         image: imagePreview,
       });
 

@@ -4,6 +4,8 @@ import http from "http";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 
+import { SOCKET_EVENTS } from "../constants/socket.events.js";
+
 dotenv.config();
 
 const app = express();
@@ -37,11 +39,24 @@ const getSocketIdsForUser = (userId) => {
 };
 
 const emitOnlineUsers = () => {
-  io.emit("getOnlineUsers", Array.from(userSocketMap.keys()));
+  io.emit(SOCKET_EVENTS.ONLINE_USERS, Array.from(userSocketMap.keys()));
 };
 
 export function getReceiverSocketIds(userId) {
   return getSocketIdsForUser(String(userId));
+}
+
+export function emitMessageEvent(userIds, eventName, payload) {
+  const targets = Array.isArray(userIds) ? userIds : [userIds];
+  const uniqueSocketIds = new Set();
+
+  targets.forEach((userId) => {
+    getSocketIdsForUser(String(userId)).forEach((socketId) => uniqueSocketIds.add(socketId));
+  });
+
+  uniqueSocketIds.forEach((socketId) => {
+    io.to(socketId).emit(eventName, payload);
+  });
 }
 
 io.use((socket, next) => {

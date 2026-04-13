@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { io } from "socket.io-client";
 import toast from "react-hot-toast";
 
+import { SOCKET_EVENTS } from "../constants/socket.events";
 import { axiosInstance } from "../lib/axios.js";
 
 const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : "/";
@@ -106,7 +107,7 @@ export const useAuthStore = create((set, get) => ({
       set({ socket: nextSocket });
     });
 
-    nextSocket.on("getOnlineUsers", (userIds) => {
+    nextSocket.on(SOCKET_EVENTS.ONLINE_USERS, (userIds) => {
       set({ onlineUsers: userIds });
     });
 
@@ -127,7 +128,7 @@ export const useAuthStore = create((set, get) => ({
 
     if (socket) {
       socket.off("connect");
-      socket.off("getOnlineUsers");
+      socket.off(SOCKET_EVENTS.ONLINE_USERS);
       socket.off("connect_error");
       socket.off("disconnect");
       socket.disconnect();

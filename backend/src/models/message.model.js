@@ -12,11 +12,21 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    conversationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Conversation",
+      required: true,
+    },
     text: {
       type: String,
     },
     image: {
       type: String,
+    },
+    status: {
+      type: String,
+      enum: ["sent", "delivered", "read"],
+      default: "sent",
     },
   },
   { timestamps: true }
