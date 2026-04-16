@@ -53,6 +53,7 @@ const Sidebar = () => {
         {filteredConversations.map((conversation) => {
           const participant = conversation.participant;
           const isOnline = onlineUsers.includes(participant?._id);
+          const unreadCount = Number(conversation.unreadCount || 0);
           const previewText =
             conversation.lastMessage?.text ||
             (conversation.lastMessage?.image ? "Photo" : "No messages yet");
@@ -76,16 +77,26 @@ const Sidebar = () => {
                 {isOnline && (
                   <span className="absolute bottom-0 right-0 size-3 bg-green-500 rounded-full ring-2 ring-zinc-900" />
                 )}
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 size-3 bg-primary rounded-full ring-2 ring-zinc-900 lg:hidden" />
+                )}
               </div>
 
               <div className="hidden lg:block text-left min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium truncate">{participant?.fullName}</div>
-                  {conversation.lastActivityAt && (
-                    <div className="text-xs text-zinc-500 whitespace-nowrap">
-                      {formatMessageTime(conversation.lastActivityAt)}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {conversation.lastActivityAt && (
+                      <div className="text-xs text-zinc-500 whitespace-nowrap">
+                        {formatMessageTime(conversation.lastActivityAt)}
+                      </div>
+                    )}
+                    {unreadCount > 0 && (
+                      <span className="min-w-6 h-6 px-2 inline-flex items-center justify-center text-xs font-semibold rounded-full bg-primary text-primary-content">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-sm text-zinc-400 truncate">{previewText}</div>
               </div>

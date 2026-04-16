@@ -13,6 +13,7 @@ const ChatContainer = () => {
   const {
     messages,
     getMessages,
+    markMessagesAsRead,
     isMessagesLoading,
     selectedUser,
     subscribeToMessages,
@@ -25,10 +26,17 @@ const ChatContainer = () => {
     if (!selectedUser?._id) return;
 
     getMessages(selectedUser._id);
+    markMessagesAsRead(selectedUser._id);
     subscribeToMessages();
 
     return () => unsubscribeFromMessages();
-  }, [selectedUser?._id, getMessages, subscribeToMessages, unsubscribeFromMessages]);
+  }, [
+    selectedUser?._id,
+    getMessages,
+    markMessagesAsRead,
+    subscribeToMessages,
+    unsubscribeFromMessages,
+  ]);
 
   useEffect(() => {
     if (messageEndRef.current && messages) {

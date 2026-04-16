@@ -26,12 +26,14 @@ export const getConversations = async (req, res) => {
 
     const formattedConversations = conversations.map((conversation) => {
       const otherParticipant = getOtherParticipant(conversation, currentUserId);
+      const unreadCount = Number(conversation.unreadCounts?.get(String(currentUserId)) || 0);
 
       return {
         _id: conversation._id,
         participant: otherParticipant,
         lastMessage: conversation.lastMessage,
         lastActivityAt: conversation.lastActivityAt,
+        unreadCount,
       };
     });
 
@@ -49,10 +51,44 @@ export const getOrCreateConversation = async (participantIds) => {
   let conversation = await Conversation.findOne({ participantKey });
 
   if (!conversation) {
+    const unreadCounts = sortedParticipants.reduce((acc, participantId) => {
+      acc[participantId] = 0;
+      return acc;
+    }, {});
+
+    const lastReadAt = sortedParticipants.reduce((acc, participantId) => {
+      acc[participantId] = null;
+      return acc;
+    }, {});
+
     conversation = await Conversation.create({
       participantKey,
       participants: sortedParticipants,
+      unreadCounts,
+      lastReadAt,
     });
+  } else {
+    let changed = false;
+    const conversationUnreadCounts = conversation.unreadCounts || new Map();
+    const conversationLastReadAt = conversation.lastReadAt || new Map();
+
+    sortedParticipants.forEach((participantId) => {
+      if (conversationUnreadCounts.get(participantId) === undefined) {
+        conversationUnreadCounts.set(participantId, 0);
+        changed = true;
+      }
+
+      if (conversationLastReadAt.get(participantId) === undefined) {
+        conversationLastReadAt.set(participantId, null);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      conversation.unreadCounts = conversationUnreadCounts;
+      conversation.lastReadAt = conversationLastReadAt;
+      await conversation.save();
+    }
   }
 
   return conversation;

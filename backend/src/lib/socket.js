@@ -87,6 +87,30 @@ io.on("connection", (socket) => {
 
   emitOnlineUsers();
 
+  socket.on(SOCKET_EVENTS.TYPING_START, (payload = {}) => {
+    const toUserId = String(payload?.toUserId || "");
+    if (!toUserId || toUserId === String(userId)) {
+      return;
+    }
+
+    emitMessageEvent(toUserId, SOCKET_EVENTS.TYPING_START, {
+      fromUserId: String(userId),
+      toUserId,
+    });
+  });
+
+  socket.on(SOCKET_EVENTS.TYPING_STOP, (payload = {}) => {
+    const toUserId = String(payload?.toUserId || "");
+    if (!toUserId || toUserId === String(userId)) {
+      return;
+    }
+
+    emitMessageEvent(toUserId, SOCKET_EVENTS.TYPING_STOP, {
+      fromUserId: String(userId),
+      toUserId,
+    });
+  });
+
   socket.on("disconnect", () => {
     console.log("Authenticated socket disconnected", socket.id, userId);
 

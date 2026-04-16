@@ -1,7 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { Image, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
+import { useAuthStore } from "../store/useAuthStore";
+import { SOCKET_EVENTS } from "../constants/socket.events";
 
 const MAX_MESSAGE_LENGTH = 2000;
 
@@ -9,7 +11,44 @@ const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const { sendMessage } = useChatStore();
+  const { sendMessage, selectedUser } = useChatStore();
+  const { socket } = useAuthStore();
+  const typingStartTimeoutRef = useRef(null);
+  const typingStopTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
+
+  const emitTypingStop = () => {
+    if (!socket?.connected || !selectedUser?._id) return;
+    socket.emit(SOCKET_EVENTS.TYPING_STOP, { toUserId: selectedUser._id });
+    isTypingRef.current = false;
+  };
+
+  const scheduleTypingStop = () => {
+    if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+    typingStopTimeoutRef.current = setTimeout(() => {
+      emitTypingStop();
+    }, 1200);
+  };
+
+  const scheduleTypingStart = () => {
+    if (!socket?.connected || !selectedUser?._id) return;
+
+    if (typingStartTimeoutRef.current) clearTimeout(typingStartTimeoutRef.current);
+    typingStartTimeoutRef.current = setTimeout(() => {
+      if (!isTypingRef.current) {
+        socket.emit(SOCKET_EVENTS.TYPING_START, { toUserId: selectedUser._id });
+        isTypingRef.current = true;
+      }
+    }, 250);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (typingStartTimeoutRef.current) clearTimeout(typingStartTimeoutRef.current);
+      if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+      emitTypingStop();
+    };
+  }, [selectedUser?._id, socket?.id]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -44,6 +83,7 @@ const MessageInput = () => {
     }
 
     try {
+      emitTypingStop();
       await sendMessage({
         text: trimmedText,
         image: imagePreview,
@@ -87,7 +127,16 @@ const MessageInput = () => {
             className="w-full input input-bordered rounded-lg input-sm sm:input-md"
             placeholder="Type a message..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (e.target.value.trim().length > 0) {
+                scheduleTypingStart();
+                scheduleTypingStop();
+              } else {
+                emitTypingStop();
+              }
+            }}
+            onBlur={emitTypingStop}
           />
           <input
             type="file"

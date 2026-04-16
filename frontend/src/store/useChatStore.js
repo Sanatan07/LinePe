@@ -63,11 +63,14 @@ const upsertConversation = (conversations, incomingConversation) => {
   return nextConversations.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
 };
 
+const typingTimeoutsByUserId = new Map();
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   conversations: [],
   users: [],
   selectedUser: null,
+  typingUsers: {},
   isUsersLoading: false,
   isMessagesLoading: false,
   isConversationsLoading: false,
@@ -108,6 +111,34 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  markMessagesAsRead: async (userId) => {
+    try {
+      const res = await axiosInstance.post(`/messages/read/${userId}`);
+      const conversationId = String(res.data?.conversationId || "");
+      if (!conversationId) return;
+
+      set((state) => ({
+        messages: state.messages.map((message) => {
+          const messageConversationId = String(message?.conversationId || "");
+          if (messageConversationId !== conversationId) return message;
+
+          const receiverId = getUserId(message.receiverId);
+          const authUserId = getUserId(useAuthStore.getState().authUser);
+
+          if (receiverId !== authUserId) return message;
+          if (message.status === "read") return message;
+          return { ...message, status: "read" };
+        }),
+        conversations: upsertConversation(state.conversations, {
+          _id: conversationId,
+          unreadCount: 0,
+        }),
+      }));
+    } catch (error) {
+      // Silent: failing to mark read shouldn't block chat UX.
+    }
+  },
+
   sendMessage: async (messageData) => {
     const { selectedUser } = get();
 
@@ -120,6 +151,7 @@ export const useChatStore = create((set, get) => ({
           participant: selectedUser,
           lastMessage: res.data,
           lastActivityAt: res.data.createdAt,
+          unreadCount: 0,
         }),
       }));
       return res.data;
@@ -132,29 +164,42 @@ export const useChatStore = create((set, get) => ({
   subscribeToMessages: () => {
     const socket = useAuthStore.getState().socket;
     const authUser = useAuthStore.getState().authUser;
-    const selectedUser = get().selectedUser;
 
-    if (!selectedUser || !socket) return;
+    if (!socket || !authUser) {
+      return;
+    }
 
     const handleIncomingMessage = (incomingMessage) => {
-      const selectedUserId = getUserId(selectedUser);
       const authUserId = getUserId(authUser);
+      const selectedUserId = getUserId(get().selectedUser);
 
-      if (!isSameConversation(incomingMessage, selectedUserId, authUserId)) {
-        return;
-      }
+      const senderId = getUserId(incomingMessage.senderId);
+      const receiverId = getUserId(incomingMessage.receiverId);
+      const isIncomingToMe = receiverId === authUserId;
+      const otherParticipant = senderId === authUserId ? incomingMessage.receiverId : incomingMessage.senderId;
 
-      set((state) => ({ messages: upsertMessage(state.messages, incomingMessage) }));
+      const isSelectedConversation =
+        Boolean(selectedUserId) && isSameConversation(incomingMessage, selectedUserId, authUserId);
+
       set((state) => ({
         conversations: upsertConversation(state.conversations, {
           _id: incomingMessage.conversationId,
-          participant: isSameConversation(incomingMessage, selectedUserId, authUserId)
-            ? selectedUser
-            : incomingMessage.senderId,
+          participant: otherParticipant,
           lastMessage: incomingMessage,
           lastActivityAt: incomingMessage.createdAt,
+          unreadCount: isIncomingToMe && !isSelectedConversation
+            ? Number(
+                state.conversations.find(
+                  (conversation) => String(conversation?._id || "") === String(incomingMessage.conversationId || "")
+                )?.unreadCount || 0
+              ) + 1
+            : 0,
         }),
       }));
+
+      if (isSelectedConversation) {
+        set((state) => ({ messages: upsertMessage(state.messages, incomingMessage) }));
+      }
     };
 
     const handleDeliveredMessage = (receipt) => {
@@ -167,13 +212,82 @@ export const useChatStore = create((set, get) => ({
       }));
     };
 
+    const handleReadMessage = (payload) => {
+      const conversationId = String(payload?.conversationId || "");
+      if (!conversationId) return;
+
+      const selectedUserId = getUserId(get().selectedUser);
+      const authUserId = getUserId(useAuthStore.getState().authUser);
+
+      set((state) => ({
+        messages: state.messages.map((message) => {
+          if (String(message?.conversationId || "") !== conversationId) return message;
+
+          const senderId = getUserId(message.senderId);
+          const receiverId = getUserId(message.receiverId);
+          const isOutgoingToSelected =
+            Boolean(selectedUserId) && senderId === authUserId && receiverId === selectedUserId;
+
+          if (!isOutgoingToSelected) return message;
+          if (message.status === "read") return message;
+          return { ...message, status: "read" };
+        }),
+      }));
+    };
+
+    const handleTypingStart = (payload) => {
+      const fromUserId = getUserId(payload?.fromUserId);
+      if (!fromUserId) return;
+
+      const selectedUserId = getUserId(get().selectedUser);
+      if (selectedUserId !== fromUserId) return;
+
+      set((state) => ({
+        typingUsers: { ...state.typingUsers, [fromUserId]: true },
+      }));
+
+      const existingTimeout = typingTimeoutsByUserId.get(fromUserId);
+      if (existingTimeout) clearTimeout(existingTimeout);
+
+      const timeoutId = setTimeout(() => {
+        typingTimeoutsByUserId.delete(fromUserId);
+        set((state) => ({
+          typingUsers: { ...state.typingUsers, [fromUserId]: false },
+        }));
+      }, 3500);
+
+      typingTimeoutsByUserId.set(fromUserId, timeoutId);
+    };
+
+    const handleTypingStop = (payload) => {
+      const fromUserId = getUserId(payload?.fromUserId);
+      if (!fromUserId) return;
+
+      const selectedUserId = getUserId(get().selectedUser);
+      if (selectedUserId !== fromUserId) return;
+
+      const existingTimeout = typingTimeoutsByUserId.get(fromUserId);
+      if (existingTimeout) clearTimeout(existingTimeout);
+      typingTimeoutsByUserId.delete(fromUserId);
+
+      set((state) => ({
+        typingUsers: { ...state.typingUsers, [fromUserId]: false },
+      }));
+    };
+
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
     socket.off(SOCKET_EVENTS.MESSAGE_DELIVERED);
+    socket.off(SOCKET_EVENTS.MESSAGE_READ);
+    socket.off(SOCKET_EVENTS.TYPING_START);
+    socket.off(SOCKET_EVENTS.TYPING_STOP);
 
     socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleIncomingMessage);
     socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleIncomingMessage);
     socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED, handleDeliveredMessage);
+    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleReadMessage);
+    socket.on(SOCKET_EVENTS.TYPING_START, handleTypingStart);
+    socket.on(SOCKET_EVENTS.TYPING_STOP, handleTypingStop);
   },
 
   refreshConversation: (conversationPayload) => {
@@ -190,7 +304,16 @@ export const useChatStore = create((set, get) => ({
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
     socket.off(SOCKET_EVENTS.MESSAGE_DELIVERED);
+    socket.off(SOCKET_EVENTS.MESSAGE_READ);
+    socket.off(SOCKET_EVENTS.TYPING_START);
+    socket.off(SOCKET_EVENTS.TYPING_STOP);
   },
 
-  setSelectedUser: (selectedUser) => set({ selectedUser }),
+  setSelectedUser: (selectedUser) => {
+    const selectedUserId = getUserId(selectedUser);
+    set((state) => ({
+      selectedUser,
+      typingUsers: selectedUserId ? { ...state.typingUsers, [selectedUserId]: false } : state.typingUsers,
+    }));
+  },
 }));

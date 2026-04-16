@@ -107,6 +107,10 @@ export const useAuthStore = create((set, get) => ({
       set({ socket: nextSocket });
     });
 
+    nextSocket.on("reconnect", () => {
+      set({ socket: nextSocket });
+    });
+
     nextSocket.on(SOCKET_EVENTS.ONLINE_USERS, (userIds) => {
       set({ onlineUsers: userIds });
     });
@@ -116,7 +120,7 @@ export const useAuthStore = create((set, get) => ({
     });
 
     nextSocket.on("disconnect", () => {
-      set((state) => (state.socket === nextSocket ? { socket: null, onlineUsers: [] } : state));
+      set((state) => (state.socket === nextSocket ? { socket: null } : state));
     });
 
     set({ socket: nextSocket });
