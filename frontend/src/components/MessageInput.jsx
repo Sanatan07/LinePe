@@ -1,15 +1,29 @@
 import { useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
-import { Image, Send, X } from "lucide-react";
+import { Image, RefreshCw, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore";
 import { SOCKET_EVENTS } from "../constants/socket.events";
+import { axiosInstance } from "../lib/axios";
 
 const MAX_MESSAGE_LENGTH = 2000;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F]/g;
+const ZERO_WIDTH_REGEX = /[\u200B-\u200D\uFEFF]/g;
+
+const sanitizePlainText = (value) =>
+  typeof value === "string"
+    ? value.replace(CONTROL_CHARS_REGEX, "").replace(ZERO_WIDTH_REGEX, "")
+    : "";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadedAttachment, setUploadedAttachment] = useState(null);
+  const [uploadingFile, setUploadingFile] = useState(null);
+  const [uploadAttempt, setUploadAttempt] = useState(0);
   const fileInputRef = useRef(null);
   const { sendMessage, selectedUser } = useChatStore();
   const { socket } = useAuthStore();
@@ -59,26 +73,86 @@ const MessageInput = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-    };
-    reader.readAsDataURL(file);
+    if (file.size > MAX_IMAGE_BYTES) {
+      toast.error("Image must be 5MB or less");
+      return;
+    }
+
+    setUploadError("");
+    setUploadProgress(0);
+    setUploadingFile(file);
+    setUploadedAttachment(null);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const removeImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(null);
+    setUploadProgress(0);
+    setUploadError("");
+    setUploadedAttachment(null);
+    setUploadingFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
+
+  const uploadSelectedImage = async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await axiosInstance.post("/messages/upload", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (event) => {
+        const total = event.total || file.size || 0;
+        if (!total) return;
+        const percent = Math.round((event.loaded / total) * 100);
+        setUploadProgress(percent);
+      },
+    });
+
+    return res.data?.attachment;
+  };
+
+  useEffect(() => {
+    if (!uploadingFile) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const attachment = await uploadSelectedImage(uploadingFile);
+        if (cancelled) return;
+
+        if (!attachment?.url) {
+          setUploadError("Upload failed");
+          return;
+        }
+
+        setUploadedAttachment(attachment);
+        setUploadProgress(100);
+      } catch (error) {
+        if (cancelled) return;
+        setUploadError(error?.response?.data?.message || "Upload failed");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [uploadingFile, uploadAttempt]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
     const trimmedText = text.trim();
 
-    if (!trimmedText && !imagePreview) return;
+    if (!trimmedText && !uploadedAttachment) return;
 
     if (trimmedText.length > MAX_MESSAGE_LENGTH) {
       toast.error(`Message must be ${MAX_MESSAGE_LENGTH} characters or less`);
+      return;
+    }
+
+    if (uploadingFile && !uploadedAttachment) {
+      toast.error("Please wait for the upload to finish");
       return;
     }
 
@@ -86,12 +160,12 @@ const MessageInput = () => {
       emitTypingStop();
       await sendMessage({
         text: trimmedText,
-        image: imagePreview,
+        attachments: uploadedAttachment ? [uploadedAttachment] : [],
       });
 
       // Clear form
       setText("");
-      setImagePreview(null);
+      removeImage();
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
       console.error("Failed to send message:", error);
@@ -117,6 +191,37 @@ const MessageInput = () => {
               <X className="size-3" />
             </button>
           </div>
+          <div className="flex-1">
+            {uploadError ? (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-error">{uploadError}</span>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-ghost"
+                  onClick={() => {
+                    if (!uploadingFile) return;
+                    setUploadError("");
+                    setUploadProgress(0);
+                    setUploadAttempt((value) => value + 1);
+                  }}
+                >
+                  <RefreshCw className="size-4" />
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <progress
+                  className="progress progress-primary w-40"
+                  value={uploadProgress}
+                  max="100"
+                />
+                <span className="text-xs text-base-content/60">
+                  {uploadedAttachment ? "Uploaded" : `Uploading ${uploadProgress}%`}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -127,9 +232,11 @@ const MessageInput = () => {
             className="w-full input input-bordered rounded-lg input-sm sm:input-md"
             placeholder="Type a message..."
             value={text}
+            maxLength={MAX_MESSAGE_LENGTH}
             onChange={(e) => {
-              setText(e.target.value);
-              if (e.target.value.trim().length > 0) {
+              const next = sanitizePlainText(e.target.value).slice(0, MAX_MESSAGE_LENGTH);
+              setText(next);
+              if (next.trim().length > 0) {
                 scheduleTypingStart();
                 scheduleTypingStop();
               } else {
@@ -158,7 +265,7 @@ const MessageInput = () => {
         <button
           type="submit"
           className="btn btn-sm btn-circle"
-          disabled={!text.trim() && !imagePreview}
+          disabled={(!text.trim() && !uploadedAttachment) || Boolean(uploadError) || (uploadingFile && !uploadedAttachment)}
         >
           <Send size={22} />
         </button>

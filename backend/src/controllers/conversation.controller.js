@@ -14,7 +14,7 @@ export const getConversations = async (req, res) => {
     const conversations = await Conversation.find({
       participants: currentUserId,
     })
-      .populate("participants", "fullName profilePic")
+      .populate("participants", "fullName profilePic lastSeen")
       .populate({
         path: "lastMessage",
         populate: [

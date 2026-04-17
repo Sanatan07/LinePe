@@ -20,6 +20,26 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    lastSeen: {
+      type: Date,
+      default: null,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    refreshSessions: [
+      {
+        tokenId: { type: String, required: true },
+        tokenHash: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+        expiresAt: { type: Date, required: true },
+        revokedAt: { type: Date, default: null },
+        replacedByTokenId: { type: String, default: null },
+        ip: { type: String, default: "" },
+        userAgent: { type: String, default: "" },
+      },
+    ],
   },
   { timestamps: true } //shows creaatedAt and updatedAt automatically
 );

@@ -71,6 +71,9 @@ export const useChatStore = create((set, get) => ({
   users: [],
   selectedUser: null,
   typingUsers: {},
+  messagesCursor: null,
+  messagesHasMore: true,
+  isLoadingOlderMessages: false,
   isUsersLoading: false,
   isMessagesLoading: false,
   isConversationsLoading: false,
@@ -102,12 +105,42 @@ export const useChatStore = create((set, get) => ({
   getMessages: async (userId) => {
     set({ isMessagesLoading: true });
     try {
-      const res = await axiosInstance.get(`/messages/${userId}`);
-      set({ messages: res.data });
+      const res = await axiosInstance.get(`/messages/${userId}`, { params: { limit: 30 } });
+      set({
+        messages: res.data.messages || [],
+        messagesCursor: res.data.nextBefore || null,
+        messagesHasMore: Boolean(res.data.hasMore),
+      });
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
       set({ isMessagesLoading: false });
+    }
+  },
+
+  loadOlderMessages: async () => {
+    const { selectedUser, messagesCursor, messagesHasMore, isLoadingOlderMessages } = get();
+    if (!selectedUser?._id || !messagesHasMore || isLoadingOlderMessages) return null;
+
+    set({ isLoadingOlderMessages: true });
+    try {
+      const res = await axiosInstance.get(`/messages/${selectedUser._id}`, {
+        params: { limit: 30, before: messagesCursor },
+      });
+
+      const olderMessages = res.data.messages || [];
+
+      set((state) => ({
+        messages: [...olderMessages, ...state.messages],
+        messagesCursor: res.data.nextBefore || state.messagesCursor,
+        messagesHasMore: Boolean(res.data.hasMore),
+      }));
+
+      return olderMessages.length;
+    } catch (error) {
+      return null;
+    } finally {
+      set({ isLoadingOlderMessages: false });
     }
   },
 
@@ -181,6 +214,10 @@ export const useChatStore = create((set, get) => ({
       const isSelectedConversation =
         Boolean(selectedUserId) && isSameConversation(incomingMessage, selectedUserId, authUserId);
 
+      if (isIncomingToMe && incomingMessage?.status === "sent") {
+        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED_ACK, { messageId: incomingMessage?._id });
+      }
+
       set((state) => ({
         conversations: upsertConversation(state.conversations, {
           _id: incomingMessage.conversationId,
@@ -214,9 +251,9 @@ export const useChatStore = create((set, get) => ({
 
     const handleReadMessage = (payload) => {
       const conversationId = String(payload?.conversationId || "");
+      const readerId = getUserId(payload?.readerId);
       if (!conversationId) return;
 
-      const selectedUserId = getUserId(get().selectedUser);
       const authUserId = getUserId(useAuthStore.getState().authUser);
 
       set((state) => ({
@@ -225,10 +262,11 @@ export const useChatStore = create((set, get) => ({
 
           const senderId = getUserId(message.senderId);
           const receiverId = getUserId(message.receiverId);
-          const isOutgoingToSelected =
-            Boolean(selectedUserId) && senderId === authUserId && receiverId === selectedUserId;
 
-          if (!isOutgoingToSelected) return message;
+          const isReceiverTab = authUserId === readerId && receiverId === authUserId;
+          const isSenderTab = authUserId !== readerId && senderId === authUserId && receiverId === readerId;
+
+          if (!isReceiverTab && !isSenderTab) return message;
           if (message.status === "read") return message;
           return { ...message, status: "read" };
         }),

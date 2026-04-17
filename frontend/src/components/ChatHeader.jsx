@@ -1,11 +1,14 @@
 import { X } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
+import { formatMessageTime } from "../lib/utils";
 
 const ChatHeader = () => {
   const { selectedUser, setSelectedUser, typingUsers } = useChatStore();
   const { onlineUsers } = useAuthStore();
   const isTyping = Boolean(typingUsers?.[selectedUser?._id]);
+  const isOnline = onlineUsers.includes(selectedUser?._id);
+  const lastSeenText = selectedUser?.lastSeen ? `Last seen ${formatMessageTime(selectedUser.lastSeen)}` : "Offline";
 
   return (
     <div className="p-2.5 border-b border-base-300">
@@ -22,7 +25,7 @@ const ChatHeader = () => {
           <div>
             <h3 className="font-medium">{selectedUser.fullName}</h3>
             <p className="text-sm text-base-content/70">
-              {isTyping ? "Typing…" : onlineUsers.includes(selectedUser._id) ? "Online" : "Offline"}
+              {isTyping ? "Typing…" : isOnline ? "Online" : lastSeenText}
             </p>
           </div>
         </div>

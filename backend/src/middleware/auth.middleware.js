@@ -18,6 +18,10 @@ export const protectRoute = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized - User not found" });
     }
 
+    if (typeof decoded.tokenVersion === "number" && user.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({ message: "Unauthorized - Session expired" });
+    }
+
     req.user = user;
     next();
   } catch (error) {
@@ -35,4 +39,20 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many auth attempts, please try again later." },
+});
+
+export const refreshLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many refresh attempts, please try again later." },
+});
+
+export const messageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please slow down." },
 });

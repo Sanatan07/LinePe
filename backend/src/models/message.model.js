@@ -23,6 +23,17 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+    attachments: [
+      {
+        url: { type: String, required: true },
+        type: { type: String, enum: ["image"], required: true },
+        mimeType: { type: String, required: true },
+        sizeBytes: { type: Number, required: true },
+        width: { type: Number, default: null },
+        height: { type: Number, default: null },
+        originalName: { type: String, default: "" },
+      },
+    ],
     status: {
       type: String,
       enum: ["sent", "delivered", "read"],
@@ -31,6 +42,9 @@ const messageSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+messageSchema.index({ conversationId: 1, createdAt: -1 });
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
 
 const Message = mongoose.model("Message", messageSchema);
 

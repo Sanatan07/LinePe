@@ -5,6 +5,8 @@ import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 
 import { SOCKET_EVENTS } from "../constants/socket.events.js";
+import Message from "../models/message.model.js";
+import User from "../models/user.model.js";
 
 dotenv.config();
 
@@ -111,6 +113,41 @@ io.on("connection", (socket) => {
     });
   });
 
+  socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED_ACK, async (payload = {}) => {
+    try {
+      const messageId = String(payload?.messageId || "");
+      if (!messageId) return;
+
+      const message = await Message.findOneAndUpdate(
+        {
+          _id: messageId,
+          receiverId: userId,
+          status: "sent",
+        },
+        { $set: { status: "delivered" } },
+        { new: true }
+      );
+
+      if (!message) return;
+
+      emitMessageEvent(message.senderId, SOCKET_EVENTS.MESSAGE_DELIVERED, {
+        messageId: message._id,
+        senderId: message.senderId,
+        receiverId: message.receiverId,
+        deliveredAt: new Date().toISOString(),
+      });
+
+      emitMessageEvent(message.receiverId, SOCKET_EVENTS.MESSAGE_DELIVERED, {
+        messageId: message._id,
+        senderId: message.senderId,
+        receiverId: message.receiverId,
+        deliveredAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Failed to handle delivered ack:", error.message);
+    }
+  });
+
   socket.on("disconnect", () => {
     console.log("Authenticated socket disconnected", socket.id, userId);
 
@@ -120,6 +157,9 @@ io.on("connection", (socket) => {
 
       if (socketsForUser.size === 0) {
         userSocketMap.delete(userId);
+        User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch((error) => {
+          console.error("Failed to update lastSeen:", error.message);
+        });
       } else {
         userSocketMap.set(userId, socketsForUser);
       }

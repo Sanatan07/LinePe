@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import helmet from "helmet";
 import path from "path";
 
 import authRoutes from "./routes/auth.route.js";
@@ -14,15 +15,28 @@ dotenv.config();
 
 const PORT = process.env.PORT;
 const __dirname = path.resolve();
-const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+const allowlist = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:5173")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+const corsOrigin = (origin, cb) => {
+  // Allow non-browser requests (no Origin header).
+  if (!origin) return cb(null, true);
+  if (allowlist.includes(origin)) return cb(null, true);
+  const error = new Error("Not allowed by CORS");
+  error.statusCode = 403;
+  return cb(error);
+};
 
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cookieParser());
+app.use(helmet());
 
 app.use(
   cors({
-    origin: clientUrl,
+    origin: corsOrigin,
     credentials: true,
   })
 );
