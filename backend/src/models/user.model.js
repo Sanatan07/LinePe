@@ -40,6 +40,12 @@ const userSchema = new mongoose.Schema(
         userAgent: { type: String, default: "" },
       },
     ],
+    blockedUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true } //shows creaatedAt and updatedAt automatically
 );

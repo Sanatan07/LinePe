@@ -15,6 +15,13 @@ const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 
 export const generateAuthTokens = ({ userId, tokenVersion }) => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("Server misconfigured: JWT_SECRET is missing");
+  }
+  if (!process.env.JWT_REFRESH_SECRET) {
+    throw new Error("Server misconfigured: JWT_REFRESH_SECRET is missing");
+  }
+
   const accessToken = jwt.sign({ userId, tokenVersion }, process.env.JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_TTL_SECONDS,
   });

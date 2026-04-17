@@ -2,9 +2,11 @@ import express from "express";
 
 import {
   checkAuth,
+  getSessions,
   login,
   logout,
   logoutAll,
+  logoutDevice,
   refreshTokenController,
   signup,
   updateProfile,
@@ -17,6 +19,8 @@ router.post("/signup", authLimiter, signup);
 router.post("/login", authLimiter, login);
 router.post("/logout", logout);
 router.post("/logout-all", protectRoute, logoutAll);
+router.get("/sessions", protectRoute, refreshLimiter, getSessions);
+router.post("/logout-device", protectRoute, refreshLimiter, logoutDevice);
 router.post("/refresh-token", refreshLimiter, refreshTokenController);
 
 router.get("/check", protectRoute, checkAuth);

@@ -8,12 +8,16 @@ import path from "path";
 import authRoutes from "./routes/auth.route.js";
 import messageRoutes from "./routes/message.route.js";
 import { connectDB } from "./lib/db.js";
+import { getMetricsSnapshot, recordHttpMetric } from "./lib/metrics.js";
+import { logger } from "./lib/logger.js";
+import { getRedisClient } from "./lib/redis.js";
 import { app, server } from "./lib/socket.js";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
+import mongoose from "mongoose";
 
 dotenv.config();
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 const __dirname = path.resolve();
 const allowlist = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:5173")
   .split(",")
@@ -33,6 +37,26 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cookieParser());
 app.use(helmet());
+app.use((req, res, next) => {
+  const start = Date.now();
+
+  res.on("finish", () => {
+    recordHttpMetric({
+      method: req.method,
+      route: req.route?.path || req.originalUrl,
+      statusCode: res.statusCode,
+    });
+
+    logger.info("http.request.completed", {
+      method: req.method,
+      route: req.originalUrl,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - start,
+    });
+  });
+
+  next();
+});
 
 app.use(
   cors({
@@ -41,8 +65,23 @@ app.use(
   })
 );
 
-app.get("/api/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+app.get("/api/health", async (req, res) => {
+  const mongoConnected = mongoose.connection.readyState === 1;
+  const redisClient = await getRedisClient().catch(() => null);
+  const redisConnected = Boolean(redisClient?.isOpen);
+  const metrics = getMetricsSnapshot();
+  const status = mongoConnected ? "ok" : "degraded";
+
+  res.status(status === "ok" ? 200 : 503).json({
+    status,
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+    services: {
+      mongo: mongoConnected ? "up" : "down",
+      redis: redisClient ? (redisConnected ? "up" : "down") : "disabled",
+    },
+    metrics,
+  });
 });
 
 app.use("/api/auth", authRoutes);
@@ -60,6 +99,7 @@ app.use(notFound);
 app.use(errorHandler);
 
 server.listen(PORT, async () => {
-  console.log("server is running on PORT:" + PORT);
+  logger.info("server.starting", { port: PORT });
   await connectDB();
+  logger.info("server.started", { port: PORT });
 });

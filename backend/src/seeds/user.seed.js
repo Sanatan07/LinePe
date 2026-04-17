@@ -1,111 +1,102 @@
 import { config } from "dotenv";
+import bcrypt from "bcryptjs";
 import { connectDB } from "../lib/db.js";
 import User from "../models/user.model.js";
 
 config();
 
-const seedUsers = [
-  // Female Users
-  {
-    email: "emma.thompson@example.com",
-    fullName: "Emma Thompson",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/1.jpg",
-  },
-  {
-    email: "olivia.miller@example.com",
-    fullName: "Olivia Miller",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/2.jpg",
-  },
-  {
-    email: "sophia.davis@example.com",
-    fullName: "Sophia Davis",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/3.jpg",
-  },
-  {
-    email: "ava.wilson@example.com",
-    fullName: "Ava Wilson",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/4.jpg",
-  },
-  {
-    email: "isabella.brown@example.com",
-    fullName: "Isabella Brown",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/5.jpg",
-  },
-  {
-    email: "mia.johnson@example.com",
-    fullName: "Mia Johnson",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/6.jpg",
-  },
-  {
-    email: "charlotte.williams@example.com",
-    fullName: "Charlotte Williams",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/7.jpg",
-  },
-  {
-    email: "amelia.garcia@example.com",
-    fullName: "Amelia Garcia",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/women/8.jpg",
-  },
-
-  // Male Users
-  {
-    email: "james.anderson@example.com",
-    fullName: "James Anderson",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/1.jpg",
-  },
-  {
-    email: "william.clark@example.com",
-    fullName: "William Clark",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/2.jpg",
-  },
-  {
-    email: "benjamin.taylor@example.com",
-    fullName: "Benjamin Taylor",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/3.jpg",
-  },
-  {
-    email: "lucas.moore@example.com",
-    fullName: "Lucas Moore",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/4.jpg",
-  },
-  {
-    email: "henry.jackson@example.com",
-    fullName: "Henry Jackson",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/5.jpg",
-  },
-  {
-    email: "alexander.martin@example.com",
-    fullName: "Alexander Martin",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/6.jpg",
-  },
-  {
-    email: "daniel.rodriguez@example.com",
-    fullName: "Daniel Rodriguez",
-    password: "123456",
-    profilePic: "https://randomuser.me/api/portraits/men/7.jpg",
-  },
+const FIRST_NAMES = [
+  "Aarav",
+  "Aisha",
+  "Arjun",
+  "Diya",
+  "Ishaan",
+  "Kabir",
+  "Meera",
+  "Neha",
+  "Riya",
+  "Rohan",
+  "Saanvi",
+  "Shaurya",
+  "Vivaan",
+  "Zara",
+  "Aditya",
+  "Ananya",
+  "Kiran",
+  "Lakshmi",
 ];
+
+const LAST_NAMES = [
+  "Sharma",
+  "Patel",
+  "Gupta",
+  "Singh",
+  "Kumar",
+  "Iyer",
+  "Reddy",
+  "Mehta",
+  "Nair",
+  "Das",
+  "Chatterjee",
+  "Bose",
+  "Kapoor",
+  "Malhotra",
+  "Jain",
+  "Rao",
+];
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+const parseCountArg = () => {
+  const index = process.argv.indexOf("--count");
+  if (index === -1) return null;
+  const raw = process.argv[index + 1];
+  const parsed = parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+};
+
+const buildRandomUser = ({ index, passwordHash }) => {
+  const firstName = pick(FIRST_NAMES);
+  const lastName = pick(LAST_NAMES);
+  const fullName = `${firstName} ${lastName}`;
+
+  const suffix = `${Date.now()}${Math.floor(Math.random() * 1e6)}${index}`;
+  const email = `${firstName}.${lastName}.${suffix}@example.com`.toLowerCase();
+
+  const isFemale = Math.random() < 0.5;
+  const portraitIndex = (index % 90) + 1;
+  const profilePic = `https://randomuser.me/api/portraits/${isFemale ? "women" : "men"}/${portraitIndex}.jpg`;
+
+  return {
+    email,
+    fullName,
+    password: passwordHash,
+    profilePic,
+  };
+};
 
 const seedDatabase = async () => {
   try {
     await connectDB();
 
-    await User.insertMany(seedUsers);
-    console.log("Database seeded successfully");
+    const count = parseCountArg() || parseInt(process.env.SEED_COUNT || "0", 10) || 20;
+
+    const plainPassword = process.env.SEED_PASSWORD || "ChangeMeNow_123!";
+    if (plainPassword.length < 12) {
+      throw new Error("SEED_PASSWORD must be at least 12 characters");
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(plainPassword, salt);
+
+    const users = Array.from({ length: count }, (_, index) =>
+      buildRandomUser({ index, passwordHash })
+    );
+
+    const result = await User.insertMany(users, { ordered: false });
+    console.log(`Seeded ${result.length} users successfully.`);
+    console.log(`Seed password (all users): ${plainPassword}`);
   } catch (error) {
     console.error("Error seeding database:", error);
   }

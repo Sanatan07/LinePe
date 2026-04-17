@@ -4,15 +4,40 @@ const conversationSchema = new mongoose.Schema(
   {
     participantKey: {
       type: String,
-      required: true,
-      unique: true,
+      default: null,
+    },
+    kind: {
+      type: String,
+      enum: ["direct", "group"],
+      default: "direct",
       index: true,
+    },
+    groupName: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    groupAvatar: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
     participants: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
+      },
+    ],
+    admins: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
       },
     ],
     unreadCounts: {
@@ -34,12 +59,32 @@ const conversationSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    mutedBy: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
+    archivedBy: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
+    pinnedBy: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
+    hiddenBy: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
   },
   { timestamps: true }
 );
 
 conversationSchema.index({ participants: 1 });
-conversationSchema.index({ participantKey: 1 }, { unique: true });
+conversationSchema.index({ participantKey: 1 }, { unique: true, sparse: true });
 
 const Conversation = mongoose.model("Conversation", conversationSchema);
 

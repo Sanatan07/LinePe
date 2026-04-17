@@ -9,6 +9,7 @@ import {
   setAuthCookies,
 } from "../lib/utils.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
+import { enqueueNotification } from "../lib/queue.js";
 import User from "../models/user.model.js";
 
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
@@ -84,6 +85,8 @@ export const signup = async (req, res, next) => {
     });
     await addRefreshSession(newUser, tokens, req);
     setAuthCookies(res, tokens);
+
+    enqueueNotification("user:welcome", { userId: String(newUser._id), email: newUser.email }).catch(() => {});
 
     res.status(201).json(sanitizeUser(newUser));
   } catch (error) {
@@ -256,6 +259,88 @@ export const refreshTokenController = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    next(error);
+  }
+};
+
+export const getSessions = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const user = await User.findById(userId).select("refreshSessions tokenVersion");
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const now = new Date();
+    const sessions = Array.isArray(user.refreshSessions) ? user.refreshSessions : [];
+
+    let currentTokenId = null;
+    const refreshToken = req.cookies?.refreshToken;
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        if (String(decoded.userId) === String(userId)) currentTokenId = decoded.tokenId || null;
+      } catch {
+        currentTokenId = null;
+      }
+    }
+
+    const visible = sessions
+      .filter((session) => session && (!session.expiresAt || session.expiresAt > now))
+      .map((session) => ({
+        tokenId: session.tokenId,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+        revokedAt: session.revokedAt,
+        ip: session.ip,
+        userAgent: session.userAgent,
+        current: currentTokenId ? session.tokenId === currentTokenId : false,
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    res.status(200).json({ sessions: visible });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const logoutDevice = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const tokenId = sanitizePlainText(req.body?.tokenId, { maxLength: 100 });
+    if (!tokenId) return res.status(400).json({ message: "tokenId is required" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const session = Array.isArray(user.refreshSessions)
+      ? user.refreshSessions.find((s) => s && s.tokenId === tokenId)
+      : null;
+
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    if (!session.revokedAt) {
+      session.revokedAt = new Date();
+      await user.save();
+    }
+
+    // If the user revoked the current device session, also clear cookies.
+    const refreshToken = req.cookies?.refreshToken;
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        if (decoded.tokenId === tokenId) {
+          clearAuthCookies(res);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    res.status(200).json({ message: "Device logged out" });
+  } catch (error) {
     next(error);
   }
 };

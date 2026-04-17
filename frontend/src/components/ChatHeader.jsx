@@ -1,41 +1,156 @@
-import { X } from "lucide-react";
+import { Archive, BellOff, BellRing, EyeOff, Pin, PinOff, Shield, X } from "lucide-react";
+
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { formatMessageTime } from "../lib/utils";
 
 const ChatHeader = () => {
-  const { selectedUser, setSelectedUser, typingUsers } = useChatStore();
+  const {
+    selectedConversation,
+    setSelectedConversation,
+    typingUsers,
+    conversations,
+    setConversationFlag,
+    setBlockStatus,
+  } = useChatStore();
   const { onlineUsers } = useAuthStore();
-  const isTyping = Boolean(typingUsers?.[selectedUser?._id]);
-  const isOnline = onlineUsers.includes(selectedUser?._id);
-  const lastSeenText = selectedUser?.lastSeen ? `Last seen ${formatMessageTime(selectedUser.lastSeen)}` : "Offline";
+
+  if (!selectedConversation) return null;
+
+  const isDirect = selectedConversation.kind !== "group";
+  const participant = isDirect ? selectedConversation.participant : null;
+  const group = !isDirect ? selectedConversation.group : null;
+
+  const isTyping = isDirect ? Boolean(typingUsers?.[participant?._id]) : false;
+  const isOnline = isDirect ? onlineUsers.includes(participant?._id) : false;
+  const lastSeenText = participant?.lastSeen
+    ? `Last seen ${formatMessageTime(participant.lastSeen)}`
+    : "Offline";
+
+  const conversation = Array.isArray(conversations)
+    ? conversations.find((item) => String(item?._id || "") === String(selectedConversation?._id || ""))
+    : null;
+
+  const title = isDirect ? participant?.fullName : group?.name || "Group";
+  const subtitle = isDirect
+    ? isTyping
+      ? "Typing…"
+      : isOnline
+        ? "Online"
+        : lastSeenText
+    : `${(group?.members?.length || 0)} members`;
 
   return (
     <div className="p-2.5 border-b border-base-300">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          {/* Avatar */}
           <div className="avatar">
             <div className="size-10 rounded-full relative">
-              <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
+              <img
+                src={(isDirect ? participant?.profilePic : group?.avatar) || "/avatar.png"}
+                alt={title}
+              />
             </div>
           </div>
 
-          {/* User info */}
           <div>
-            <h3 className="font-medium">{selectedUser.fullName}</h3>
-            <p className="text-sm text-base-content/70">
-              {isTyping ? "Typing…" : isOnline ? "Online" : lastSeenText}
-            </p>
+            <h3 className="font-medium">{title}</h3>
+            <p className="text-sm text-base-content/70">{subtitle}</p>
           </div>
         </div>
 
-        {/* Close button */}
-        <button onClick={() => setSelectedUser(null)}>
-          <X />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="dropdown dropdown-end">
+            <button type="button" className="btn btn-ghost btn-sm">
+              Manage
+            </button>
+            <ul className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
+              <li>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConversationFlag({
+                      conversationId: selectedConversation._id,
+                      flag: "mute",
+                      enabled: !conversation?.muted,
+                    })
+                  }
+                >
+                  {conversation?.muted ? <BellRing className="size-4" /> : <BellOff className="size-4" />}
+                  {conversation?.muted ? "Unmute" : "Mute"}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConversationFlag({
+                      conversationId: selectedConversation._id,
+                      flag: "pin",
+                      enabled: !conversation?.pinned,
+                    })
+                  }
+                >
+                  {conversation?.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                  {conversation?.pinned ? "Unpin" : "Pin"}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConversationFlag({
+                      conversationId: selectedConversation._id,
+                      flag: "archive",
+                      enabled: !conversation?.archived,
+                    })
+                  }
+                >
+                  <Archive className="size-4" />
+                  {conversation?.archived ? "Unarchive" : "Archive"}
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConversationFlag({
+                      conversationId: selectedConversation._id,
+                      flag: "hide",
+                      enabled: true,
+                    })
+                  }
+                >
+                  <EyeOff className="size-4" />
+                  Hide
+                </button>
+              </li>
+              {isDirect && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setBlockStatus({ userId: participant?._id, enabled: true })}
+                  >
+                    <Shield className="size-4" />
+                    Block
+                  </button>
+                </li>
+              )}
+            </ul>
+          </div>
+
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => setSelectedConversation(null)}
+            type="button"
+          >
+            <X />
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+
 export default ChatHeader;
+

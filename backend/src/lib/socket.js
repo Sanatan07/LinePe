@@ -3,10 +3,15 @@ import express from "express";
 import http from "http";
 import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
 
 import { SOCKET_EVENTS } from "../constants/socket.events.js";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
+import { getRedisClient } from "./redis.js";
+import { createInMemoryPresenceStore, createRedisPresenceStore } from "./presence.store.js";
+import { incrementMetric } from "./metrics.js";
+import { logger } from "./logger.js";
 
 dotenv.config();
 
@@ -21,7 +26,28 @@ const io = new Server(server, {
   },
 });
 
-const userSocketMap = new Map();
+const USER_ROOM_PREFIX = "user:";
+const userRoom = (userId) => `${USER_ROOM_PREFIX}${String(userId)}`;
+
+let presenceStore = createInMemoryPresenceStore();
+
+// Optional Redis adapter + Redis-backed presence.
+(async () => {
+  try {
+    const redis = await getRedisClient();
+    if (!redis) return;
+
+    const pubClient = redis;
+    const subClient = redis.duplicate();
+    await subClient.connect();
+
+    io.adapter(createAdapter(pubClient, subClient));
+    presenceStore = createRedisPresenceStore({ redis });
+    logger.info("socket.redis_adapter.enabled");
+  } catch (error) {
+    logger.error("socket.redis_adapter.failed", { error });
+  }
+})();
 
 const parseCookies = (cookieHeader = "") =>
   cookieHeader.split(";").reduce((cookies, rawCookie) => {
@@ -35,29 +61,24 @@ const parseCookies = (cookieHeader = "") =>
     return cookies;
   }, {});
 
-const getSocketIdsForUser = (userId) => {
-  const socketIds = userSocketMap.get(userId);
-  return socketIds ? Array.from(socketIds) : [];
-};
-
 const emitOnlineUsers = () => {
-  io.emit(SOCKET_EVENTS.ONLINE_USERS, Array.from(userSocketMap.keys()));
+  presenceStore
+    .getOnlineUserIds()
+    .then((userIds) => {
+      io.emit(SOCKET_EVENTS.ONLINE_USERS, userIds);
+    })
+    .catch(() => {});
 };
 
 export function getReceiverSocketIds(userId) {
-  return getSocketIdsForUser(String(userId));
+  // Prefer emitting to `user:<id>` rooms; keep this for backwards compatibility only.
+  return [];
 }
 
 export function emitMessageEvent(userIds, eventName, payload) {
   const targets = Array.isArray(userIds) ? userIds : [userIds];
-  const uniqueSocketIds = new Set();
-
   targets.forEach((userId) => {
-    getSocketIdsForUser(String(userId)).forEach((socketId) => uniqueSocketIds.add(socketId));
-  });
-
-  uniqueSocketIds.forEach((socketId) => {
-    io.to(socketId).emit(eventName, payload);
+    io.to(userRoom(userId)).emit(eventName, payload);
   });
 }
 
@@ -81,13 +102,18 @@ io.use((socket, next) => {
 
 io.on("connection", (socket) => {
   const { userId } = socket.user;
-  console.log("Authenticated socket connected", socket.id, userId);
+  incrementMetric("socketConnections");
+  logger.info("socket.connected", { socketId: socket.id, userId });
 
-  const existingSockets = userSocketMap.get(userId) || new Set();
-  existingSockets.add(socket.id);
-  userSocketMap.set(userId, existingSockets);
+  socket.join(userRoom(userId));
+  presenceStore.addSocket(userId, socket.id).catch(() => {});
+  presenceStore.touchUser?.(userId).catch?.(() => {});
 
   emitOnlineUsers();
+
+  const heartbeat = setInterval(() => {
+    presenceStore.touchUser?.(userId).catch?.(() => {});
+  }, 30 * 1000);
 
   socket.on(SOCKET_EVENTS.TYPING_START, (payload = {}) => {
     const toUserId = String(payload?.toUserId || "");
@@ -144,26 +170,37 @@ io.on("connection", (socket) => {
         deliveredAt: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("Failed to handle delivered ack:", error.message);
+      logger.error("socket.message_delivered_ack.failed", { error, socketId: socket.id, userId });
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST, async () => {
+    try {
+      const onlineUsers = await presenceStore.getOnlineUserIds();
+      socket.emit(SOCKET_EVENTS.MESSAGE_SYNC, {
+        onlineUsers,
+        syncedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error("socket.sync.failed", { error, socketId: socket.id, userId });
     }
   });
 
   socket.on("disconnect", () => {
-    console.log("Authenticated socket disconnected", socket.id, userId);
+    incrementMetric("socketDisconnects");
+    logger.info("socket.disconnected", { socketId: socket.id, userId });
+    clearInterval(heartbeat);
 
-    const socketsForUser = userSocketMap.get(userId);
-    if (socketsForUser) {
-      socketsForUser.delete(socket.id);
-
-      if (socketsForUser.size === 0) {
-        userSocketMap.delete(userId);
-        User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch((error) => {
-          console.error("Failed to update lastSeen:", error.message);
+    presenceStore
+      .removeSocket(userId, socket.id)
+      .then(() => presenceStore.getSocketIds(userId))
+      .then((socketIds) => {
+        if (socketIds.length > 0) return;
+        return User.findByIdAndUpdate(userId, { lastSeen: new Date() }).catch((error) => {
+          logger.error("socket.last_seen_update.failed", { error, userId });
         });
-      } else {
-        userSocketMap.set(userId, socketsForUser);
-      }
-    }
+      })
+      .catch(() => {});
 
     emitOnlineUsers();
   });

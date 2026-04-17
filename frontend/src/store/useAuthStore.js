@@ -5,10 +5,28 @@ import toast from "react-hot-toast";
 import { SOCKET_EVENTS } from "../constants/socket.events";
 import { axiosInstance } from "../lib/axios.js";
 
-const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:5001" : "/";
+const BASE_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_ORIGIN ||
+  (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.message || error?.message || fallbackMessage;
+
+const resyncChatState = async () => {
+  const { useChatStore } = await import("./useChatStore");
+  const chatStore = useChatStore.getState();
+  await chatStore.getConversations();
+
+  if (chatStore.selectedConversation?._id) {
+    await chatStore.getMessages(chatStore.selectedConversation);
+    await chatStore.markMessagesAsRead(chatStore.selectedConversation);
+  }
+
+  Object.keys(chatStore.pendingMessages || {}).forEach((clientMessageId) => {
+    chatStore.retryPendingMessage(clientMessageId);
+  });
+};
 
 export const useAuthStore = create((set, get) => ({
   authUser: null,
@@ -101,14 +119,28 @@ export const useAuthStore = create((set, get) => ({
     const nextSocket = io(BASE_URL, {
       withCredentials: true,
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 8000,
     });
 
     nextSocket.on("connect", () => {
       set({ socket: nextSocket });
+      nextSocket.emit(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST);
+      resyncChatState().catch(() => {});
     });
 
     nextSocket.on("reconnect", () => {
+      set((state) => ({ ...state, socket: nextSocket }));
+      nextSocket.emit(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST);
+      resyncChatState().catch(() => {});
+    });
+
+    nextSocket.io.on("reconnect", () => {
       set({ socket: nextSocket });
+      nextSocket.emit(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST);
+      resyncChatState().catch(() => {});
     });
 
     nextSocket.on(SOCKET_EVENTS.ONLINE_USERS, (userIds) => {

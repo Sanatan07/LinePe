@@ -6,10 +6,13 @@ import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 
 const getMessageId = (message) => String(message?._id || message?.messageId || "");
+const getClientMessageId = (message) => String(message?.clientMessageId || "");
 
 const getUserId = (value) => String(value?._id || value || "");
 
-const isSameConversation = (message, selectedUserId, authUserId) => {
+const getConversationId = (value) => String(value?._id || value?.conversationId || value || "");
+
+const isSameDirectConversation = (message, selectedUserId, authUserId) => {
   const senderId = getUserId(message.senderId);
   const receiverId = getUserId(message.receiverId);
 
@@ -21,11 +24,21 @@ const isSameConversation = (message, selectedUserId, authUserId) => {
 
 const upsertMessage = (messages, incomingMessage) => {
   const incomingMessageId = getMessageId(incomingMessage);
+  const incomingClientMessageId = getClientMessageId(incomingMessage);
   if (!incomingMessageId) {
-    return messages;
+    if (!incomingClientMessageId) {
+      return messages;
+    }
   }
 
-  const existingIndex = messages.findIndex((message) => getMessageId(message) === incomingMessageId);
+  const existingIndex = messages.findIndex((message) => {
+    const messageId = getMessageId(message);
+    const clientMessageId = getClientMessageId(message);
+
+    if (incomingMessageId && messageId === incomingMessageId) return true;
+    if (incomingClientMessageId && clientMessageId === incomingClientMessageId) return true;
+    return false;
+  });
 
   if (existingIndex === -1) {
     return [...messages, incomingMessage];
@@ -60,23 +73,34 @@ const upsertConversation = (conversations, incomingConversation) => {
     ...incomingConversation,
   };
 
-  return nextConversations.sort((a, b) => new Date(b.lastActivityAt) - new Date(a.lastActivityAt));
+  return nextConversations.sort((a, b) => {
+    if (Boolean(a?.pinned) !== Boolean(b?.pinned)) return a.pinned ? -1 : 1;
+    return new Date(b.lastActivityAt) - new Date(a.lastActivityAt);
+  });
 };
 
 const typingTimeoutsByUserId = new Map();
+const retryTimeoutsByClientMessageId = new Map();
+const createClientMessageId = () =>
+  globalThis.crypto?.randomUUID?.() || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 export const useChatStore = create((set, get) => ({
   messages: [],
   conversations: [],
   users: [],
-  selectedUser: null,
+  selectedConversation: null,
   typingUsers: {},
+  chatSearchResults: [],
+  highlightMessageId: null,
   messagesCursor: null,
   messagesHasMore: true,
   isLoadingOlderMessages: false,
   isUsersLoading: false,
   isMessagesLoading: false,
   isConversationsLoading: false,
+  isChatSearchLoading: false,
+  isGroupCreating: false,
+  pendingMessages: {},
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -87,6 +111,39 @@ export const useChatStore = create((set, get) => ({
       toast.error(error.response.data.message);
     } finally {
       set({ isUsersLoading: false });
+    }
+  },
+
+  createGroup: async ({ name, memberIds, avatar } = {}) => {
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+
+    if (!trimmedName) {
+      toast.error("Group name is required");
+      return null;
+    }
+
+    if (ids.length < 2) {
+      toast.error("Select at least 2 members");
+      return null;
+    }
+
+    set({ isGroupCreating: true });
+    try {
+      const res = await axiosInstance.post("/messages/groups", {
+        name: trimmedName,
+        avatar: typeof avatar === "string" ? avatar : "",
+        memberIds: ids,
+      });
+
+      await get().getConversations();
+      set({ selectedConversation: res.data });
+      return res.data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to create group");
+      throw error;
+    } finally {
+      set({ isGroupCreating: false });
     }
   },
 
@@ -102,12 +159,47 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  getMessages: async (userId) => {
+  setConversationFlag: async ({ conversationId, flag, enabled }) => {
+    if (!conversationId || !flag) return;
+    try {
+      await axiosInstance.post(`/messages/conversations/${conversationId}/${flag}`, { enabled });
+      await get().getConversations();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update conversation");
+    }
+  },
+
+  setBlockStatus: async ({ userId, enabled }) => {
+    if (!userId) return;
+    try {
+      await axiosInstance.post(`/messages/block/${userId}`, { enabled });
+      await get().getUsers();
+      await get().getConversations();
+
+      const selectedConversation = get().selectedConversation;
+      const selectedParticipantId =
+        selectedConversation?.kind === "direct" ? getUserId(selectedConversation?.participant) : "";
+
+      if (selectedParticipantId === String(userId) && enabled) {
+        set({ selectedConversation: null, messages: [] });
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update block status");
+    }
+  },
+
+  getMessages: async (conversation) => {
     set({ isMessagesLoading: true });
     try {
-      const res = await axiosInstance.get(`/messages/${userId}`, { params: { limit: 30 } });
+      const conversationId = getConversationId(conversation);
+      const res = await axiosInstance.get(`/messages/conversation/${conversationId}`, {
+        params: { limit: 30 },
+      });
       set({
-        messages: res.data.messages || [],
+        messages: (res.data.messages || []).map((message) => ({
+          ...message,
+          deliveryState: "sent",
+        })),
         messagesCursor: res.data.nextBefore || null,
         messagesHasMore: Boolean(res.data.hasMore),
       });
@@ -118,13 +210,58 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  searchChat: async ({ userId, query }) => {
+    const trimmed = typeof query === "string" ? query.trim() : "";
+    if (!userId || !trimmed) {
+      set({ chatSearchResults: [], highlightMessageId: null });
+      return;
+    }
+
+    set({ isChatSearchLoading: true });
+    try {
+      const res = await axiosInstance.get(`/messages/search/${userId}`, {
+        params: { q: trimmed, limit: 20 },
+      });
+      set({ chatSearchResults: res.data?.results || [] });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Search failed");
+    } finally {
+      set({ isChatSearchLoading: false });
+    }
+  },
+
+  jumpToMessage: async ({ conversationId, createdAt, messageId }) => {
+    if (!conversationId || !createdAt) return;
+    set({ isMessagesLoading: true });
+    try {
+      const timestamp = new Date(createdAt).getTime();
+      const before = Number.isFinite(timestamp) ? new Date(timestamp + 1).toISOString() : null;
+
+      const res = await axiosInstance.get(`/messages/conversation/${conversationId}`, {
+        params: { limit: 60, before },
+      });
+
+      set({
+        messages: res.data.messages || [],
+        messagesCursor: res.data.nextBefore || null,
+        messagesHasMore: Boolean(res.data.hasMore),
+        highlightMessageId: messageId ? String(messageId) : null,
+      });
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to jump to message");
+    } finally {
+      set({ isMessagesLoading: false });
+    }
+  },
+
   loadOlderMessages: async () => {
-    const { selectedUser, messagesCursor, messagesHasMore, isLoadingOlderMessages } = get();
-    if (!selectedUser?._id || !messagesHasMore || isLoadingOlderMessages) return null;
+    const { selectedConversation, messagesCursor, messagesHasMore, isLoadingOlderMessages } = get();
+    const conversationId = getConversationId(selectedConversation);
+    if (!conversationId || !messagesHasMore || isLoadingOlderMessages) return null;
 
     set({ isLoadingOlderMessages: true });
     try {
-      const res = await axiosInstance.get(`/messages/${selectedUser._id}`, {
+      const res = await axiosInstance.get(`/messages/conversation/${conversationId}`, {
         params: { limit: 30, before: messagesCursor },
       });
 
@@ -144,16 +281,19 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  markMessagesAsRead: async (userId) => {
+  markMessagesAsRead: async (conversation) => {
     try {
-      const res = await axiosInstance.post(`/messages/read/${userId}`);
-      const conversationId = String(res.data?.conversationId || "");
-      if (!conversationId) return;
+      const targetConversationId = getConversationId(conversation);
+      if (!targetConversationId) return;
+
+      const res = await axiosInstance.post(`/messages/conversation/read/${targetConversationId}`);
+      const updatedConversationId = String(res.data?.conversationId || "");
+      if (!updatedConversationId) return;
 
       set((state) => ({
         messages: state.messages.map((message) => {
           const messageConversationId = String(message?.conversationId || "");
-          if (messageConversationId !== conversationId) return message;
+          if (messageConversationId !== updatedConversationId) return message;
 
           const receiverId = getUserId(message.receiverId);
           const authUserId = getUserId(useAuthStore.getState().authUser);
@@ -163,7 +303,7 @@ export const useChatStore = create((set, get) => ({
           return { ...message, status: "read" };
         }),
         conversations: upsertConversation(state.conversations, {
-          _id: conversationId,
+          _id: updatedConversationId,
           unreadCount: 0,
         }),
       }));
@@ -173,25 +313,112 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendMessage: async (messageData) => {
-    const { selectedUser } = get();
+    const { selectedConversation } = get();
+    const conversationId = getConversationId(selectedConversation);
+    if (!conversationId) return null;
+
+    const clientMessageId = messageData.clientMessageId || createClientMessageId();
+    const authUser = useAuthStore.getState().authUser;
+    const optimisticMessage = {
+      _id: `temp:${clientMessageId}`,
+      clientMessageId,
+      conversationId,
+      senderId: authUser,
+      receiverId: selectedConversation?.kind === "direct" ? selectedConversation?.participant : null,
+      text: messageData.text || "",
+      attachments: messageData.attachments || [],
+      createdAt: new Date().toISOString(),
+      status: "sent",
+      deliveryState: "sending",
+    };
+
+    set((state) => ({
+      messages: upsertMessage(state.messages, optimisticMessage),
+      pendingMessages: {
+        ...state.pendingMessages,
+        [clientMessageId]: {
+          clientMessageId,
+          conversationId,
+          payload: { ...messageData, clientMessageId },
+          attempts: Number(state.pendingMessages?.[clientMessageId]?.attempts || 0),
+        },
+      },
+    }));
 
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
+      const res = await axiosInstance.post(`/messages/conversation/send/${conversationId}`, {
+        ...messageData,
+        clientMessageId,
+      }, {
+        headers: { "x-idempotency-key": clientMessageId },
+      });
+
+      const timeoutId = retryTimeoutsByClientMessageId.get(clientMessageId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        retryTimeoutsByClientMessageId.delete(clientMessageId);
+      }
+
       set((state) => ({
-        messages: upsertMessage(state.messages, res.data),
+        messages: upsertMessage(state.messages, {
+          ...res.data,
+          deliveryState: "sent",
+        }),
         conversations: upsertConversation(state.conversations, {
-          _id: res.data.conversationId,
-          participant: selectedUser,
+          _id: conversationId,
           lastMessage: res.data,
           lastActivityAt: res.data.createdAt,
           unreadCount: 0,
         }),
+        pendingMessages: Object.fromEntries(
+          Object.entries(state.pendingMessages || {}).filter(([key]) => key !== clientMessageId)
+        ),
       }));
       return res.data;
     } catch (error) {
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          getClientMessageId(message) === clientMessageId
+            ? { ...message, deliveryState: "failed" }
+            : message
+        ),
+        pendingMessages: {
+          ...state.pendingMessages,
+          [clientMessageId]: {
+            ...(state.pendingMessages?.[clientMessageId] || {}),
+            clientMessageId,
+            conversationId,
+            payload: { ...messageData, clientMessageId },
+            attempts: Number(state.pendingMessages?.[clientMessageId]?.attempts || 0) + 1,
+          },
+        },
+      }));
+
+      const attempts = Number(get().pendingMessages?.[clientMessageId]?.attempts || 1);
+      const delayMs = Math.min(1000 * 2 ** attempts, 10000);
+      const timeoutId = setTimeout(() => {
+        get().retryPendingMessage(clientMessageId);
+      }, delayMs);
+      retryTimeoutsByClientMessageId.set(clientMessageId, timeoutId);
+
       toast.error(error.response?.data?.message || "Failed to send message");
       throw error;
     }
+  },
+
+  retryPendingMessage: async (clientMessageId) => {
+    const pending = get().pendingMessages?.[clientMessageId];
+    if (!pending) return null;
+
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        getClientMessageId(message) === clientMessageId
+          ? { ...message, deliveryState: "sending" }
+          : message
+      ),
+    }));
+
+    return get().sendMessage(pending.payload);
   },
 
   subscribeToMessages: () => {
@@ -204,38 +431,46 @@ export const useChatStore = create((set, get) => ({
 
     const handleIncomingMessage = (incomingMessage) => {
       const authUserId = getUserId(authUser);
-      const selectedUserId = getUserId(get().selectedUser);
+      const selectedConversationId = getConversationId(get().selectedConversation);
 
       const senderId = getUserId(incomingMessage.senderId);
       const receiverId = getUserId(incomingMessage.receiverId);
-      const isIncomingToMe = receiverId === authUserId;
-      const otherParticipant = senderId === authUserId ? incomingMessage.receiverId : incomingMessage.senderId;
+      const incomingConversationId = getConversationId(incomingMessage?.conversationId);
+      const isIncomingToMe =
+        receiverId === authUserId || (incomingConversationId && incomingMessage.receiverId === null);
 
       const isSelectedConversation =
-        Boolean(selectedUserId) && isSameConversation(incomingMessage, selectedUserId, authUserId);
+        Boolean(selectedConversationId) && incomingConversationId === selectedConversationId;
 
       if (isIncomingToMe && incomingMessage?.status === "sent") {
         socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED_ACK, { messageId: incomingMessage?._id });
       }
 
-      set((state) => ({
-        conversations: upsertConversation(state.conversations, {
-          _id: incomingMessage.conversationId,
-          participant: otherParticipant,
-          lastMessage: incomingMessage,
-          lastActivityAt: incomingMessage.createdAt,
-          unreadCount: isIncomingToMe && !isSelectedConversation
-            ? Number(
-                state.conversations.find(
-                  (conversation) => String(conversation?._id || "") === String(incomingMessage.conversationId || "")
-                )?.unreadCount || 0
-              ) + 1
-            : 0,
-        }),
-      }));
+      const existing = get().conversations.find(
+        (conversation) => getConversationId(conversation) === String(incomingMessage.conversationId || "")
+      );
+
+      if (!existing) {
+        get().getConversations();
+      } else {
+        set((state) => ({
+          conversations: upsertConversation(state.conversations, {
+            _id: incomingMessage.conversationId,
+            lastMessage: incomingMessage,
+            lastActivityAt: incomingMessage.createdAt,
+            unreadCount:
+              isIncomingToMe && !isSelectedConversation ? Number(existing?.unreadCount || 0) + 1 : 0,
+          }),
+        }));
+      }
 
       if (isSelectedConversation) {
-        set((state) => ({ messages: upsertMessage(state.messages, incomingMessage) }));
+        set((state) => ({
+          messages: upsertMessage(state.messages, {
+            ...incomingMessage,
+            deliveryState: "sent",
+          }),
+        }));
       }
     };
 
@@ -243,7 +478,7 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: state.messages.map((message) =>
           getMessageId(message) === String(receipt.messageId)
-            ? { ...message, status: "delivered" }
+            ? { ...message, status: "delivered", deliveryState: "sent" }
             : message
         ),
       }));
@@ -277,8 +512,10 @@ export const useChatStore = create((set, get) => ({
       const fromUserId = getUserId(payload?.fromUserId);
       if (!fromUserId) return;
 
-      const selectedUserId = getUserId(get().selectedUser);
-      if (selectedUserId !== fromUserId) return;
+      const selectedConversation = get().selectedConversation;
+      const selectedUserId =
+        selectedConversation?.kind === "direct" ? getUserId(selectedConversation?.participant) : "";
+      if (!selectedUserId || selectedUserId !== fromUserId) return;
 
       set((state) => ({
         typingUsers: { ...state.typingUsers, [fromUserId]: true },
@@ -301,8 +538,10 @@ export const useChatStore = create((set, get) => ({
       const fromUserId = getUserId(payload?.fromUserId);
       if (!fromUserId) return;
 
-      const selectedUserId = getUserId(get().selectedUser);
-      if (selectedUserId !== fromUserId) return;
+      const selectedConversation = get().selectedConversation;
+      const selectedUserId =
+        selectedConversation?.kind === "direct" ? getUserId(selectedConversation?.participant) : "";
+      if (!selectedUserId || selectedUserId !== fromUserId) return;
 
       const existingTimeout = typingTimeoutsByUserId.get(fromUserId);
       if (existingTimeout) clearTimeout(existingTimeout);
@@ -326,6 +565,15 @@ export const useChatStore = create((set, get) => ({
     socket.on(SOCKET_EVENTS.MESSAGE_READ, handleReadMessage);
     socket.on(SOCKET_EVENTS.TYPING_START, handleTypingStart);
     socket.on(SOCKET_EVENTS.TYPING_STOP, handleTypingStop);
+    socket.on(SOCKET_EVENTS.MESSAGE_SYNC, () => {
+      get().getConversations();
+      if (get().selectedConversation?._id) {
+        get().getMessages(get().selectedConversation);
+      }
+      Object.keys(get().pendingMessages || {}).forEach((clientMessageId) => {
+        get().retryPendingMessage(clientMessageId);
+      });
+    });
   },
 
   refreshConversation: (conversationPayload) => {
@@ -345,13 +593,15 @@ export const useChatStore = create((set, get) => ({
     socket.off(SOCKET_EVENTS.MESSAGE_READ);
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
+    socket.off(SOCKET_EVENTS.MESSAGE_SYNC);
   },
 
-  setSelectedUser: (selectedUser) => {
-    const selectedUserId = getUserId(selectedUser);
+  setSelectedConversation: (selectedConversation) => {
     set((state) => ({
-      selectedUser,
-      typingUsers: selectedUserId ? { ...state.typingUsers, [selectedUserId]: false } : state.typingUsers,
+      selectedConversation,
+      typingUsers: state.typingUsers,
+      chatSearchResults: [],
+      highlightMessageId: null,
     }));
   },
 }));

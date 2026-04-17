@@ -25,15 +25,17 @@ const MessageInput = () => {
   const [uploadingFile, setUploadingFile] = useState(null);
   const [uploadAttempt, setUploadAttempt] = useState(0);
   const fileInputRef = useRef(null);
-  const { sendMessage, selectedUser } = useChatStore();
+  const { sendMessage, selectedConversation } = useChatStore();
   const { socket } = useAuthStore();
   const typingStartTimeoutRef = useRef(null);
   const typingStopTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
 
   const emitTypingStop = () => {
-    if (!socket?.connected || !selectedUser?._id) return;
-    socket.emit(SOCKET_EVENTS.TYPING_STOP, { toUserId: selectedUser._id });
+    if (!socket?.connected || selectedConversation?.kind === "group") return;
+    const toUserId = selectedConversation?.participant?._id;
+    if (!toUserId) return;
+    socket.emit(SOCKET_EVENTS.TYPING_STOP, { toUserId });
     isTypingRef.current = false;
   };
 
@@ -45,12 +47,14 @@ const MessageInput = () => {
   };
 
   const scheduleTypingStart = () => {
-    if (!socket?.connected || !selectedUser?._id) return;
+    if (!socket?.connected || selectedConversation?.kind === "group") return;
+    const toUserId = selectedConversation?.participant?._id;
+    if (!toUserId) return;
 
     if (typingStartTimeoutRef.current) clearTimeout(typingStartTimeoutRef.current);
     typingStartTimeoutRef.current = setTimeout(() => {
       if (!isTypingRef.current) {
-        socket.emit(SOCKET_EVENTS.TYPING_START, { toUserId: selectedUser._id });
+        socket.emit(SOCKET_EVENTS.TYPING_START, { toUserId });
         isTypingRef.current = true;
       }
     }, 250);
@@ -62,7 +66,7 @@ const MessageInput = () => {
       if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
       emitTypingStop();
     };
-  }, [selectedUser?._id, socket?.id]);
+  }, [selectedConversation?._id, socket?.id]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
