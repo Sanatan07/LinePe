@@ -1,2 +1,4 @@
 node_modules/
 backend/node_modules/
+k8s/secret.yaml
+k8s/*.secret.yaml
