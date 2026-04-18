@@ -47,6 +47,9 @@ const LAST_NAMES = [
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
+const buildUsername = (firstName, lastName, suffix) =>
+  `${firstName}.${lastName}.${suffix}`.toLowerCase().slice(0, 30);
+
 const parseCountArg = () => {
   const index = process.argv.indexOf("--count");
   if (index === -1) return null;
@@ -63,6 +66,7 @@ const buildRandomUser = ({ index, passwordHash }) => {
 
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1e6)}${index}`;
   const email = `${firstName}.${lastName}.${suffix}@example.com`.toLowerCase();
+  const username = buildUsername(firstName, lastName, suffix);
 
   const isFemale = Math.random() < 0.5;
   const portraitIndex = (index % 90) + 1;
@@ -71,6 +75,7 @@ const buildRandomUser = ({ index, passwordHash }) => {
   return {
     email,
     fullName,
+    username,
     password: passwordHash,
     profilePic,
   };

@@ -1,6 +1,7 @@
 import Navbar from "./components/Navbar";
 
 import HomePage from "./pages/HomePage";
+import InvitePage from "./pages/InvitePage";
 import SignUpPage from "./pages/SignUpPage";
 import LoginPage from "./pages/LoginPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -57,6 +58,8 @@ const App = () => {
           path="/login"
           element={!authUser ? <LoginPage /> : <Navigate to="/" />}
         />
+
+        <Route path="/invite/:code" element={<InvitePage />} />
 
         <Route path="/settings" element={<SettingsPage />} />
 

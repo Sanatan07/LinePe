@@ -88,6 +88,7 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   conversations: [],
   users: [],
+  searchResults: [],
   selectedConversation: null,
   typingUsers: {},
   chatSearchResults: [],
@@ -99,6 +100,9 @@ export const useChatStore = create((set, get) => ({
   isMessagesLoading: false,
   isConversationsLoading: false,
   isChatSearchLoading: false,
+  isUserSearchLoading: false,
+  isOpeningConversation: false,
+  isSendingInvite: false,
   isGroupCreating: false,
   pendingMessages: {},
 
@@ -227,6 +231,105 @@ export const useChatStore = create((set, get) => ({
       toast.error(error.response?.data?.message || "Search failed");
     } finally {
       set({ isChatSearchLoading: false });
+    }
+  },
+
+  searchUsers: async (query) => {
+    const trimmed = typeof query === "string" ? query.trim() : "";
+
+    if (!trimmed) {
+      set({ searchResults: [] });
+      return [];
+    }
+
+    set({ isUserSearchLoading: true });
+    try {
+      const res = await axiosInstance.get(`/users/search?q=${encodeURIComponent(trimmed)}`);
+      const results = Array.isArray(res.data?.results) ? res.data.results : [];
+      set({ searchResults: results });
+      return results;
+    } catch (error) {
+      set({ searchResults: [] });
+      toast.error(error?.response?.data?.message || "User search failed");
+      return [];
+    } finally {
+      set({ isUserSearchLoading: false });
+    }
+  },
+
+  clearUserSearch: () => {
+    set({ searchResults: [], isUserSearchLoading: false });
+  },
+
+  sendInvite: async (phoneNumber) => {
+    const trimmed = typeof phoneNumber === "string" ? phoneNumber.trim() : "";
+    if (!trimmed) {
+      toast.error("Phone number is required");
+      return null;
+    }
+
+    set({ isSendingInvite: true });
+    try {
+      const res = await axiosInstance.post("/invites", { phoneNumber: trimmed });
+      return res.data || null;
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to send invite");
+      return null;
+    } finally {
+      set({ isSendingInvite: false });
+    }
+  },
+
+  openConversationFromUser: async (user) => {
+    const userId = getUserId(user);
+    if (!userId) return null;
+
+    const existingConversation = (get().conversations || []).find(
+      (conversation) =>
+        conversation?.kind === "direct" && getUserId(conversation?.participant) === userId
+    );
+
+    if (existingConversation) {
+      set({
+        selectedConversation: existingConversation,
+        searchResults: [],
+      });
+      return existingConversation;
+    }
+
+    set({ isOpeningConversation: true });
+    try {
+      const res = await axiosInstance.get(`/messages/${userId}`, {
+        params: { limit: 30 },
+      });
+
+      await get().getConversations();
+
+      const createdConversation = (get().conversations || []).find(
+        (conversation) =>
+          String(conversation?._id || "") === String(res.data?.conversationId || "") ||
+          (conversation?.kind === "direct" && getUserId(conversation?.participant) === userId)
+      );
+
+      const nextConversation =
+        createdConversation ||
+        {
+          _id: res.data?.conversationId || "",
+          kind: "direct",
+          participant: user,
+        };
+
+      set({
+        selectedConversation: nextConversation,
+        searchResults: [],
+      });
+
+      return nextConversation;
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to open chat");
+      return null;
+    } finally {
+      set({ isOpeningConversation: false });
     }
   },
 

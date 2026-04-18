@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pin, Users } from "lucide-react";
+import { MessageSquarePlus, Pin, Search, Users } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useAuthStore } from "../store/useAuthStore";
@@ -15,14 +15,27 @@ const Sidebar = () => {
     createGroup,
     isGroupCreating,
     conversations,
+    searchResults,
     selectedConversation,
     setSelectedConversation,
     isConversationsLoading,
+    isUserSearchLoading,
+    isOpeningConversation,
+    isSendingInvite,
+    searchUsers,
+    clearUserSearch,
+    sendInvite,
+    openConversationFromUser,
   } = useChatStore();
 
   const { onlineUsers, authUser } = useAuthStore();
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [search, setSearch] = useState("");
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [newChatTab, setNewChatTab] = useState("username");
+  const [newChatQuery, setNewChatQuery] = useState("");
+  const [lastResolvedQuery, setLastResolvedQuery] = useState("");
+  const [inviteSentPhone, setInviteSentPhone] = useState("");
 
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [groupName, setGroupName] = useState("");
@@ -32,6 +45,26 @@ const Sidebar = () => {
     getConversations();
     getUsers();
   }, [getConversations, getUsers]);
+
+  useEffect(() => {
+    if (!isNewChatModalOpen) return undefined;
+
+    const trimmed = newChatQuery.trim();
+    if (!trimmed) {
+      setLastResolvedQuery("");
+      setInviteSentPhone("");
+      clearUserSearch();
+      return undefined;
+    }
+
+    setInviteSentPhone("");
+    const timeoutId = setTimeout(async () => {
+      setLastResolvedQuery(trimmed);
+      await searchUsers(trimmed);
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
+  }, [newChatQuery, isNewChatModalOpen, searchUsers, clearUserSearch]);
 
   const filteredConversations = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -67,6 +100,24 @@ const Sidebar = () => {
             placeholder="Search chats…"
             type="text"
           />
+        </div>
+        <div className="mt-3 hidden lg:flex">
+          <button
+            type="button"
+            className="btn btn-sm btn-primary w-full"
+            onClick={() => {
+              setNewChatTab("username");
+              setNewChatQuery("");
+              setLastResolvedQuery("");
+              setInviteSentPhone("");
+              clearUserSearch();
+              setIsNewChatModalOpen(true);
+            }}
+            disabled={!authUser}
+          >
+            <MessageSquarePlus className="size-4" />
+            New chat
+          </button>
         </div>
         <div className="mt-3 hidden lg:flex">
           <button
@@ -227,6 +278,234 @@ const Sidebar = () => {
                 {isGroupCreating ? "Creating…" : "Create"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {isNewChatModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-base-100 w-full max-w-lg rounded-lg border border-base-300 shadow p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">New chat</h3>
+                <p className="text-sm text-base-content/60">Search by username and open a chat instantly.</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setIsNewChatModalOpen(false);
+                  setNewChatQuery("");
+                  setLastResolvedQuery("");
+                  setInviteSentPhone("");
+                  clearUserSearch();
+                }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 tabs tabs-boxed w-fit">
+              <button
+                type="button"
+                className={`tab ${newChatTab === "username" ? "tab-active" : ""}`}
+                onClick={() => {
+                  setNewChatTab("username");
+                  setNewChatQuery("");
+                  setLastResolvedQuery("");
+                  setInviteSentPhone("");
+                  clearUserSearch();
+                }}
+              >
+                Username
+              </button>
+              <button
+                type="button"
+                className={`tab ${newChatTab === "phone" ? "tab-active" : ""}`}
+                onClick={() => {
+                  setNewChatTab("phone");
+                  setNewChatQuery("");
+                  setLastResolvedQuery("");
+                  setInviteSentPhone("");
+                  clearUserSearch();
+                }}
+              >
+                Phone
+              </button>
+            </div>
+
+            {newChatTab === "username" ? (
+              <div className="mt-4 space-y-3">
+                <label className="input input-bordered flex items-center gap-2">
+                  <Search className="size-4 text-base-content/50" />
+                  <input
+                    type="text"
+                    className="grow"
+                    placeholder="Search by username or full name"
+                    value={newChatQuery}
+                    onChange={(e) => setNewChatQuery(e.target.value)}
+                    maxLength={50}
+                  />
+                </label>
+
+                <div className="border border-base-300 rounded-md max-h-80 overflow-auto">
+                  {isUserSearchLoading && (
+                    <div className="p-4 text-sm text-base-content/60">Searching...</div>
+                  )}
+
+                  {!isUserSearchLoading && !newChatQuery.trim() && (
+                    <div className="p-4 text-sm text-base-content/60">
+                      Start typing a username to find someone.
+                    </div>
+                  )}
+
+                  {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
+                    <div className="p-4 text-sm text-base-content/60">No user found</div>
+                  )}
+
+                  {!isUserSearchLoading &&
+                    searchResults.map((user) => (
+                      <button
+                        key={user._id}
+                        type="button"
+                        className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-base-200 transition-colors"
+                        onClick={async () => {
+                          const conversation = await openConversationFromUser(user);
+                          if (conversation) {
+                            setIsNewChatModalOpen(false);
+                            setNewChatQuery("");
+                            setLastResolvedQuery("");
+                            setInviteSentPhone("");
+                            clearUserSearch();
+                          }
+                        }}
+                        disabled={isOpeningConversation}
+                      >
+                        <img
+                          src={user.profilePic || "/avatar.png"}
+                          alt={user.fullName}
+                          className="size-12 rounded-full object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{user.fullName}</div>
+                          <div className="text-sm text-base-content/60 truncate">
+                            @{user.username || "no-username"}
+                          </div>
+                        </div>
+                        <span className="btn btn-sm btn-outline">
+                          {isOpeningConversation ? "Opening..." : "Message"}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <label className="input input-bordered flex items-center gap-2">
+                  <Search className="size-4 text-base-content/50" />
+                  <input
+                    type="text"
+                    className="grow"
+                    placeholder="Search by +91 phone number"
+                    value={newChatQuery}
+                    onChange={(e) => setNewChatQuery(e.target.value)}
+                    maxLength={20}
+                  />
+                </label>
+
+                <div className="border border-base-300 rounded-md max-h-80 overflow-auto">
+                  {isUserSearchLoading && (
+                    <div className="p-4 text-sm text-base-content/60">Searching...</div>
+                  )}
+
+                  {!isUserSearchLoading && !newChatQuery.trim() && (
+                    <div className="p-4 text-sm text-base-content/60">
+                      Enter a `+91` phone number to message someone or send an invite.
+                    </div>
+                  )}
+
+                  {!isUserSearchLoading && searchResults.length > 0 &&
+                    searchResults.map((user) => (
+                      <button
+                        key={user._id}
+                        type="button"
+                        className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-base-200 transition-colors"
+                        onClick={async () => {
+                          const conversation = await openConversationFromUser(user);
+                          if (conversation) {
+                            setIsNewChatModalOpen(false);
+                            setNewChatQuery("");
+                            setLastResolvedQuery("");
+                            setInviteSentPhone("");
+                            clearUserSearch();
+                          }
+                        }}
+                        disabled={isOpeningConversation}
+                      >
+                        <img
+                          src={user.profilePic || "/avatar.png"}
+                          alt={user.fullName}
+                          className="size-12 rounded-full object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{user.fullName}</div>
+                          <div className="text-sm text-base-content/60 truncate">
+                            {user.username ? `@${user.username}` : "LinePe user"}
+                          </div>
+                        </div>
+                        <span className="btn btn-sm btn-outline">
+                          {isOpeningConversation ? "Opening..." : "Message"}
+                        </span>
+                      </button>
+                    ))}
+
+                  {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
+                    <div className="p-4 space-y-3">
+                      {inviteSentPhone && inviteSentPhone === lastResolvedQuery ? (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium text-success">Invite sent</div>
+                          <div className="text-sm text-base-content/60">
+                            We created a shareable invite for {inviteSentPhone}.
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm text-base-content/60">
+                            This phone number is not on LinePe yet.
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={isSendingInvite}
+                            onClick={async () => {
+                              const result = await sendInvite(lastResolvedQuery);
+                              if (!result) return;
+
+                              if (result.alreadyOnPlatform && result.user) {
+                                const conversation = await openConversationFromUser(result.user);
+                                if (conversation) {
+                                  setIsNewChatModalOpen(false);
+                                  setNewChatQuery("");
+                                  setLastResolvedQuery("");
+                                  setInviteSentPhone("");
+                                  clearUserSearch();
+                                }
+                                return;
+                              }
+
+                              setInviteSentPhone(lastResolvedQuery);
+                              toast.success(result.message || "Invite sent successfully");
+                            }}
+                          >
+                            {isSendingInvite ? "Sending..." : "Invite to LinePe"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
