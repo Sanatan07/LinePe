@@ -5,6 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "migrate:users:postgres": "node src/scripts/migrate-users-to-postgres.js",
     "seed:users": "node src/seeds/user.seed.js",
     "worker": "node src/jobs/worker.js"
   },

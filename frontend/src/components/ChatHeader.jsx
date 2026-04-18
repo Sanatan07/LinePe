@@ -1,4 +1,4 @@
-import { Archive, BellOff, BellRing, EyeOff, Pin, PinOff, Shield, X } from "lucide-react";
+import { Archive, BellOff, BellRing, EyeOff, Pin, PinOff, Shield, Trash2, X } from "lucide-react";
 
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
@@ -12,6 +12,7 @@ const ChatHeader = () => {
     conversations,
     setConversationFlag,
     setBlockStatus,
+    deleteConversation,
   } = useChatStore();
   const { onlineUsers } = useAuthStore();
 
@@ -136,6 +137,23 @@ const ChatHeader = () => {
                   </button>
                 </li>
               )}
+              {isDirect && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        "Delete this chat and all its messages permanently?"
+                      );
+                      if (!confirmed) return;
+                      await deleteConversation(selectedConversation);
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                    Delete chat
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 
@@ -153,4 +171,3 @@ const ChatHeader = () => {
 };
 
 export default ChatHeader;
-

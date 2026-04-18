@@ -185,6 +185,42 @@ export const setConversationFlag = async (req, res) => {
   }
 };
 
+export const deleteDirectConversation = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const conversationId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation id" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      participants: currentUserId,
+    }).select("_id kind");
+
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    if (conversation.kind !== "direct") {
+      return res.status(400).json({ message: "Only direct chats can be deleted here" });
+    }
+
+    await Message.deleteMany({ conversationId: conversation._id });
+    await Conversation.deleteOne({ _id: conversation._id });
+
+    res.status(200).json({
+      success: true,
+      conversationId: String(conversation._id),
+      message: "Chat deleted successfully",
+    });
+  } catch (error) {
+    console.log("Error in deleteDirectConversation controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const createGroupConversation = async (req, res) => {
   try {
     const currentUserId = req.user._id;

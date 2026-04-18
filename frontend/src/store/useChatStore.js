@@ -173,6 +173,37 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  deleteConversation: async (conversation) => {
+    const conversationId = getConversationId(conversation);
+    if (!conversationId) return false;
+
+    try {
+      await axiosInstance.delete(`/messages/conversations/${conversationId}`);
+
+      set((state) => ({
+        conversations: (state.conversations || []).filter(
+          (item) => String(item?._id || "") !== conversationId
+        ),
+        selectedConversation:
+          String(state.selectedConversation?._id || "") === conversationId
+            ? null
+            : state.selectedConversation,
+        messages:
+          String(state.selectedConversation?._id || "") === conversationId
+            ? []
+            : state.messages,
+        chatSearchResults: [],
+        highlightMessageId: null,
+      }));
+
+      toast.success("Chat deleted successfully");
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete chat");
+      return false;
+    }
+  },
+
   setBlockStatus: async ({ userId, enabled }) => {
     if (!userId) return;
     try {

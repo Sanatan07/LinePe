@@ -16,6 +16,7 @@ import {
   getConversations,
   searchConversations,
   setConversationFlag,
+  deleteDirectConversation,
   createGroupConversation,
   addGroupMembers,
   removeGroupMember,
@@ -29,6 +30,7 @@ router.get("/users", protectRoute, getUsersForSidebar);
 router.get("/conversations", protectRoute, getConversations);
 router.get("/conversations/search", protectRoute, searchConversations);
 router.post("/conversations/:id/:flag", protectRoute, messageLimiter, setConversationFlag);
+router.delete("/conversations/:id", protectRoute, messageLimiter, deleteDirectConversation);
 
 router.post("/groups", protectRoute, messageLimiter, createGroupConversation);
 router.post("/groups/:id/members", protectRoute, messageLimiter, addGroupMembers);

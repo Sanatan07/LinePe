@@ -68,3 +68,16 @@ export const syncRegisteredUser = async (user) => {
   if (!user) return;
   await upsertRegisteredUser(user);
 };
+
+export const backfillRegisteredUsers = async () => {
+  const users = await User.find({});
+  let migrated = 0;
+
+  for (const user of users) {
+    const nextUser = await ensureUserHasUsername(user);
+    await syncRegisteredUser(nextUser);
+    migrated += 1;
+  }
+
+  return { migrated };
+};

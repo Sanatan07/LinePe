@@ -1,0 +1,77 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: linepe
+      POSTGRES_USER: linepe
+      POSTGRES_PASSWORD: linepe
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linepe -d linepe"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      CLIENT_URL: http://localhost:5000
+      CLIENT_URLS: http://localhost:5000
+      MONGODB_URI: mongodb://mongo:27017/linepe
+      REDIS_URL: redis://redis:6379
+      POSTGRES_URL: postgres://linepe:linepe@postgres:5432/linepe
+      JWT_SECRET: change-me-access-secret
+      JWT_REFRESH_SECRET: change-me-refresh-secret
+      INVITE_BASE_URL: http://localhost:5000
+      CLOUDINARY_CLOUD_NAME: demo
+      CLOUDINARY_API_KEY: demo
+      CLOUDINARY_API_SECRET: demo
+    ports:
+      - "5000:5000"
+
+volumes:
+  mongo_data:
+  redis_data:
+  postgres_data:

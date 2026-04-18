@@ -11,6 +11,8 @@ const getConnectionString = () =>
   process.env.DATABASE_URL ||
   "";
 
+const isPostgresConfigured = () => Boolean(getConnectionString());
+
 export const getPostgresPool = () => {
   if (pool) return pool;
 
@@ -54,6 +56,13 @@ const ensureRegisteredUsersTable = async () => {
 
 export const connectPostgres = async () => {
   try {
+    if (!isPostgresConfigured()) {
+      logger.warn("db.postgres.skipped", {
+        reason: "missing_connection_string",
+      });
+      return;
+    }
+
     const nextPool = getPostgresPool();
     const client = await nextPool.connect();
     client.release();
@@ -71,6 +80,7 @@ export const connectPostgres = async () => {
 
 export const upsertRegisteredUser = async (user) => {
   if (!user?._id) return;
+  if (!isPostgresConfigured()) return;
 
   if (!schemaReadyPromise) {
     schemaReadyPromise = ensureRegisteredUsersTable();
