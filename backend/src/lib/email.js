@@ -7,12 +7,8 @@ export const sendEmail = async ({ to, subject, text, html }) => {
   const from = process.env.EMAIL_FROM || "LinePe <onboarding@resend.dev>";
 
   if (!apiKey) {
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("Server misconfigured: RESEND_API_KEY is missing");
-    }
-
-    logger.info("email.dev.skipped", { to, subject, text });
-    return { id: "dev-email" };
+    logger.error("email.config.missing", { to, subject });
+    throw new Error("Email is not configured. Add RESEND_API_KEY and EMAIL_FROM in backend/.env.");
   }
 
   const response = await fetch(RESEND_API_URL, {

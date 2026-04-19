@@ -46,22 +46,21 @@ const SignUpPage = () => {
 
     const success = validateForm();
 
-    if (success === true) {
-      const result = await signup(formData);
-      if (result?.requiresEmailVerification) {
-        setPendingEmail(result.email || formData.email.trim().toLowerCase());
+    if (success !== true) return;
+
+    if (pendingEmail) {
+      if (!/^\d{6}$/.test(otp)) {
+        return toast.error("Enter the 6 digit verification code");
       }
-    }
-  };
 
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-
-    if (!/^\d{6}$/.test(otp)) {
-      return toast.error("Enter the 6 digit OTP");
+      await verifySignupOtp({ email: pendingEmail, otp });
+      return;
     }
 
-    await verifySignupOtp({ email: pendingEmail, otp });
+    const result = await signup(formData);
+    if (result?.requiresEmailVerification) {
+      setPendingEmail(result.email || formData.email.trim().toLowerCase());
+    }
   };
 
   return (
@@ -81,58 +80,6 @@ const SignUpPage = () => {
             </div>
           </div>
 
-          {pendingEmail ? (
-            <form onSubmit={handleVerifyOtp} className="space-y-6">
-              <div className="text-center space-y-2">
-                <h2 className="text-xl font-semibold">Verify your email</h2>
-                <p className="text-sm text-base-content/60">
-                  We sent a 6 digit code to {pendingEmail}.
-                </p>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Verification Code</span>
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="\d{6}"
-                  maxLength={6}
-                  className="input input-bordered w-full text-center text-2xl tracking-[0.5em]"
-                  placeholder="000000"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                />
-              </div>
-
-              <button type="submit" className="btn btn-primary w-full" disabled={isSigningUp}>
-                {isSigningUp ? (
-                  <>
-                    <Loader2 className="size-5 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  "Verify & Create Account"
-                )}
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-ghost w-full"
-                disabled={isSigningUp}
-                onClick={async () => {
-                  const result = await signup(formData);
-                  if (result?.requiresEmailVerification) {
-                    setOtp("");
-                    setPendingEmail(result.email || pendingEmail);
-                  }
-                }}
-              >
-                Resend code
-              </button>
-            </form>
-          ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="form-control">
               <label className="label">
@@ -165,7 +112,11 @@ const SignUpPage = () => {
                   className="input input-bordered w-full pl-10"
                   placeholder="you@example.com"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    setPendingEmail("");
+                    setOtp("");
+                  }}
                 />
               </div>
             </div>
@@ -183,12 +134,14 @@ const SignUpPage = () => {
                   className="input input-bordered w-full pl-10"
                   placeholder="your.username"
                   value={formData.username}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setFormData({
                       ...formData,
                       username: e.target.value.toLowerCase(),
-                    })
-                  }
+                    });
+                    setPendingEmail("");
+                    setOtp("");
+                  }}
                 />
               </div>
               <p className="text-xs text-base-content/60 mt-2">
@@ -209,7 +162,11 @@ const SignUpPage = () => {
                   className="input input-bordered w-full pl-10"
                   placeholder="Enter a strong password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, password: e.target.value });
+                    setPendingEmail("");
+                    setOtp("");
+                  }}
                 />
                 <button
                   type="button"
@@ -228,18 +185,56 @@ const SignUpPage = () => {
               </p>
             </div>
 
+            {pendingEmail && (
+              <div className="space-y-3">
+                <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-base-content/70">
+                  Verification code sent to {pendingEmail}. Enter it below to create your account.
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-medium">Verification Code</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    maxLength={6}
+                    className="input input-bordered w-full text-center text-2xl tracking-[0.5em]"
+                    placeholder="000000"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm w-full"
+                  disabled={isSigningUp}
+                  onClick={async () => {
+                    const result = await signup(formData);
+                    if (result?.requiresEmailVerification) {
+                      setOtp("");
+                      setPendingEmail(result.email || pendingEmail);
+                    }
+                  }}
+                >
+                  Resend code
+                </button>
+              </div>
+            )}
+
             <button type="submit" className="btn btn-primary w-full" disabled={isSigningUp}>
               {isSigningUp ? (
                 <>
                   <Loader2 className="size-5 animate-spin" />
-                  Loading...
+                  {pendingEmail ? "Creating..." : "Sending..."}
                 </>
               ) : (
-                "Create Account"
+                pendingEmail ? "Create Account" : "Send Verification Code"
               )}
             </button>
           </form>
-          )}
 
           <div className="text-center">
             <p className="text-base-content/60">
