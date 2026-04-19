@@ -10,6 +10,7 @@ import {
 } from "../lib/utils.js";
 import { getJwtRefreshSecret } from "../lib/secrets.js";
 import { sendEmail } from "../lib/email.js";
+import { logger } from "../lib/logger.js";
 import { consumePendingSignup, createPendingSignup } from "../lib/signup-otp.store.js";
 import { ensureUserHasUsername, syncRegisteredUser } from "../lib/account-registry.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
@@ -165,19 +166,30 @@ export const signup = async (req, res, next) => {
       password: hashedPassword,
     });
 
-    await sendEmail({
-      to: nextEmail,
-      subject: "Your LinePe verification code",
-      text: `Your LinePe verification code is ${otp}. It expires in 10 minutes.`,
-      html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
-          <h2>Verify your LinePe email</h2>
-          <p>Your verification code is:</p>
-          <p style="font-size:28px;font-weight:700;letter-spacing:6px">${otp}</p>
-          <p>This code expires in 10 minutes.</p>
-        </div>
-      `,
-    });
+    try {
+      await sendEmail({
+        to: nextEmail,
+        subject: "Your LinePe verification code",
+        text: `Your LinePe verification code is ${otp}. It expires in 10 minutes.`,
+        html: `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
+            <h2>Verify your LinePe email</h2>
+            <p>Your verification code is:</p>
+            <p style="font-size:28px;font-weight:700;letter-spacing:6px">${otp}</p>
+            <p>This code expires in 10 minutes.</p>
+          </div>
+        `,
+      });
+    } catch (error) {
+      logger.error("signup.email.failed", {
+        error,
+        to: nextEmail,
+        provider: process.env.SMTP_HOST ? "smtp" : "resend",
+      });
+      return res.status(502).json({
+        message: "Could not send verification email. Please check server email settings.",
+      });
+    }
 
     res.status(200).json({
       success: true,
