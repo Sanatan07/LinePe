@@ -38,6 +38,8 @@ const corsOrigin = (origin, cb) => {
   return cb(error);
 };
 
+app.set("trust proxy", Number(process.env.TRUST_PROXY || 1));
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use(cookieParser());

@@ -1,8 +1,14 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import jwt from "jsonwebtoken";
 
 import { getJwtSecret } from "../lib/secrets.js";
 import User from "../models/user.model.js";
+
+const authRateLimitKey = (req) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const ipKey = ipKeyGenerator(req.ip);
+  return email ? `${ipKey}:${email}` : ipKey;
+};
 
 export const protectRoute = async (req, res, next) => {
   try {
@@ -40,6 +46,7 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  keyGenerator: authRateLimitKey,
   message: { message: "Too many auth attempts, please try again later." },
 });
 
