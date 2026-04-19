@@ -55,11 +55,27 @@ export const useAuthStore = create((set, get) => ({
     set({ isSigningUp: true });
     try {
       const res = await axiosInstance.post("/auth/signup", data);
+      toast.success(res.data?.message || "Verification code sent");
+      return res.data;
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Signup failed"));
+      return null;
+    } finally {
+      set({ isSigningUp: false });
+    }
+  },
+
+  verifySignupOtp: async ({ email, otp }) => {
+    set({ isSigningUp: true });
+    try {
+      const res = await axiosInstance.post("/auth/signup/verify", { email, otp });
       set({ authUser: res.data });
       toast.success("Account created successfully");
       get().connectSocket();
+      return res.data;
     } catch (error) {
-      toast.error(getErrorMessage(error, "Signup failed"));
+      toast.error(getErrorMessage(error, "OTP verification failed"));
+      return null;
     } finally {
       set({ isSigningUp: false });
     }

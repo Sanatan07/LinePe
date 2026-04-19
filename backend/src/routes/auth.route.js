@@ -10,12 +10,14 @@ import {
   refreshTokenController,
   signup,
   updateProfile,
+  verifySignupOtp,
 } from "../controllers/auth.controller.js";
 import { authLimiter, protectRoute, refreshLimiter } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
 
 router.post("/signup", authLimiter, signup);
+router.post("/signup/verify", authLimiter, verifySignupOtp);
 router.post("/login", authLimiter, login);
 router.post("/logout", logout);
 router.post("/logout-all", protectRoute, logoutAll);

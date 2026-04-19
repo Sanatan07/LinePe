@@ -16,8 +16,10 @@ const SignUpPage = () => {
     username: "",
     password: "",
   });
+  const [otp, setOtp] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
 
-  const { signup, isSigningUp } = useAuthStore();
+  const { signup, verifySignupOtp, isSigningUp } = useAuthStore();
 
   const validateForm = () => {
     if (!formData.fullName.trim()) return toast.error("Full name is required");
@@ -39,12 +41,27 @@ const SignUpPage = () => {
     return true;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const success = validateForm();
 
-    if (success === true) signup(formData);
+    if (success === true) {
+      const result = await signup(formData);
+      if (result?.requiresEmailVerification) {
+        setPendingEmail(result.email || formData.email.trim().toLowerCase());
+      }
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+
+    if (!/^\d{6}$/.test(otp)) {
+      return toast.error("Enter the 6 digit OTP");
+    }
+
+    await verifySignupOtp({ email: pendingEmail, otp });
   };
 
   return (
@@ -64,6 +81,58 @@ const SignUpPage = () => {
             </div>
           </div>
 
+          {pendingEmail ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              <div className="text-center space-y-2">
+                <h2 className="text-xl font-semibold">Verify your email</h2>
+                <p className="text-sm text-base-content/60">
+                  We sent a 6 digit code to {pendingEmail}.
+                </p>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium">Verification Code</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  className="input input-bordered w-full text-center text-2xl tracking-[0.5em]"
+                  placeholder="000000"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary w-full" disabled={isSigningUp}>
+                {isSigningUp ? (
+                  <>
+                    <Loader2 className="size-5 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  "Verify & Create Account"
+                )}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-ghost w-full"
+                disabled={isSigningUp}
+                onClick={async () => {
+                  const result = await signup(formData);
+                  if (result?.requiresEmailVerification) {
+                    setOtp("");
+                    setPendingEmail(result.email || pendingEmail);
+                  }
+                }}
+              >
+                Resend code
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="form-control">
               <label className="label">
@@ -170,6 +239,7 @@ const SignUpPage = () => {
               )}
             </button>
           </form>
+          )}
 
           <div className="text-center">
             <p className="text-base-content/60">

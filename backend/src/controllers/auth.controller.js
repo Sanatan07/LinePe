@@ -9,6 +9,8 @@ import {
   setAuthCookies,
 } from "../lib/utils.js";
 import { getJwtRefreshSecret } from "../lib/secrets.js";
+import { sendEmail } from "../lib/email.js";
+import { consumePendingSignup, createPendingSignup } from "../lib/signup-otp.store.js";
 import { ensureUserHasUsername, syncRegisteredUser } from "../lib/account-registry.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
 import { enqueueNotification } from "../lib/queue.js";
@@ -17,6 +19,7 @@ import User from "../models/user.model.js";
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 const USERNAME_REGEX = /^[a-z0-9_.]+$/;
 const RESERVED_USERNAMES = new Set(["admin", "support", "linepe", "system"]);
+const OTP_REGEX = /^\d{6}$/;
 
 const sanitizeUser = (user) => ({
   _id: user._id,
@@ -153,7 +156,7 @@ export const signup = async (req, res, next) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const newUser = await User.create({
+    const { otp, expiresAt } = createPendingSignup(nextEmail, {
       fullName: nextFullName,
       email: nextEmail,
       username: nextUsername,
@@ -161,6 +164,76 @@ export const signup = async (req, res, next) => {
       ...(nextPhoneNumber ? { phoneNumber: nextPhoneNumber } : {}),
       password: hashedPassword,
     });
+
+    await sendEmail({
+      to: nextEmail,
+      subject: "Your LinePe verification code",
+      text: `Your LinePe verification code is ${otp}. It expires in 10 minutes.`,
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
+          <h2>Verify your LinePe email</h2>
+          <p>Your verification code is:</p>
+          <p style="font-size:28px;font-weight:700;letter-spacing:6px">${otp}</p>
+          <p>This code expires in 10 minutes.</p>
+        </div>
+      `,
+    });
+
+    res.status(200).json({
+      success: true,
+      requiresEmailVerification: true,
+      email: nextEmail,
+      expiresAt,
+      message: "Verification code sent to your email",
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      if (error?.keyPattern?.username) {
+        return res.status(400).json({ message: "Username already exists" });
+      }
+      if (error?.keyPattern?.email) {
+        return res.status(400).json({ message: "Email already exists" });
+      }
+      if (error?.keyPattern?.phoneNumber) {
+        return res.status(400).json({ message: "Phone number already exists" });
+      }
+    }
+    next(error);
+  }
+};
+
+export const verifySignupOtp = async (req, res, next) => {
+  try {
+    const nextEmail = sanitizePlainText(req.body?.email, { maxLength: 254 }).toLowerCase();
+    const otp = sanitizePlainText(req.body?.otp, { maxLength: 6 });
+
+    if (!nextEmail || !OTP_REGEX.test(otp)) {
+      return res.status(400).json({ message: "Valid email and 6 digit OTP are required" });
+    }
+
+    const pending = consumePendingSignup(nextEmail, otp);
+    if (!pending.ok) {
+      return res.status(400).json({ message: pending.message });
+    }
+
+    const { email, username, phoneNumber } = pending.payload;
+    const [existingEmailUser, existingUsernameUser, existingPhoneUser] = await Promise.all([
+      User.findOne({ email }),
+      findUsernameOwner(username),
+      findPhoneOwner(phoneNumber),
+    ]);
+
+    if (existingEmailUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
+    if (existingUsernameUser) {
+      return res.status(400).json({ message: "Username already exists" });
+    }
+    if (existingPhoneUser) {
+      return res.status(400).json({ message: "Phone number already exists" });
+    }
+
+    const newUser = await User.create(pending.payload);
     await syncRegisteredUser(newUser);
 
     const tokens = generateAuthTokens({
