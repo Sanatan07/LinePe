@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import fs from "fs";
 import helmet from "helmet";
 import path from "path";
 
@@ -94,11 +95,28 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+  const frontendDistPath = path.join(__dirname, "../frontend/dist");
+  const frontendIndexPath = path.join(frontendDistPath, "index.html");
 
-  app.get("/{*path}", (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend/dist/index.html"));
+  app.get("/", (req, res) => {
+    if (fs.existsSync(frontendIndexPath)) {
+      return res.sendFile(frontendIndexPath);
+    }
+
+    return res.status(200).json({
+      status: "ok",
+      service: "LinePe API",
+      health: "/api/health",
+    });
   });
+
+  if (fs.existsSync(frontendIndexPath)) {
+    app.use(express.static(frontendDistPath));
+
+    app.get("/{*path}", (req, res) => {
+      res.sendFile(frontendIndexPath);
+    });
+  }
 }
 
 app.use(notFound);
