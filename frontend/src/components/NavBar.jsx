@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
-import { LogOut, MessageSquare, Settings, User } from "lucide-react";
+import { ClipboardList, LogOut, MessageSquare, Settings, User } from "lucide-react";
 
 const Navbar = () => {
   const { logout, authUser } = useAuthStore();
+  const isAuditAdmin =
+    authUser?.username === "admin070801" || authUser?.email === "admin070801@gmail.com";
 
   return (
     <header
@@ -32,6 +34,13 @@ const Navbar = () => {
               <Settings className="w-4 h-4" />
               <span className="hidden sm:inline">Settings</span>
             </Link>
+
+            {isAuditAdmin && (
+              <Link to={"/audit"} className="btn btn-sm gap-2 transition-colors">
+                <ClipboardList className="w-4 h-4" />
+                <span className="hidden sm:inline">Audit</span>
+              </Link>
+            )}
 
             {authUser && (
               <>

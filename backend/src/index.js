@@ -8,6 +8,7 @@ import path from "path";
 
 import authRoutes from "./routes/auth.route.js";
 import inviteRoutes from "./routes/invite.route.js";
+import logRoutes from "./routes/log.route.js";
 import messageRoutes from "./routes/message.route.js";
 import userRoutes from "./routes/user.route.js";
 import { connectDB } from "./lib/db.js";
@@ -93,6 +94,7 @@ app.get("/api/health", async (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/invites", inviteRoutes);
+app.use("/api/logs", logRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/users", userRoutes);
 

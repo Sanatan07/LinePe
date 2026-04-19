@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "migrate:users:postgres": "node src/scripts/migrate-users-to-postgres.js",
     "seed:users": "node src/seeds/user.seed.js",
+    "seed:admin": "node src/seeds/admin.seed.js",
     "worker": "node src/jobs/worker.js"
   },
   "keywords": [],

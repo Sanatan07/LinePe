@@ -11,6 +11,7 @@ import {
 import { getJwtRefreshSecret } from "../lib/secrets.js";
 import { sendEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
+import { recordAuditLog } from "../lib/audit-log.js";
 import { consumePendingSignup, createPendingSignup } from "../lib/signup-otp.store.js";
 import { ensureUserHasUsername, syncRegisteredUser } from "../lib/account-registry.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
@@ -122,15 +123,42 @@ export const signup = async (req, res, next) => {
     const nextPhoneNumber = typeof phoneNumber === "string" ? normalizeIndianPhoneNumber(phoneNumber) : "";
 
     if (!nextFullName || !nextEmail || !password || !nextUsername) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "signup_request",
+        status: "failure",
+        email: nextEmail,
+        message: "Missing required signup fields",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Full name, email, username, and password are required" });
     }
 
     if (password.length < 12) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "signup_request",
+        status: "failure",
+        email: nextEmail,
+        message: "Password too short",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Password must be at least 12 characters" });
     }
 
     const usernameError = validateUsername(nextUsername);
     if (usernameError) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "signup_request",
+        status: "failure",
+        email: nextEmail,
+        message: usernameError,
+        statusCode: 400,
+      });
       return res.status(400).json({ message: usernameError });
     }
 
@@ -145,6 +173,15 @@ export const signup = async (req, res, next) => {
     ]);
 
     if (existingEmailUser) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "signup_request",
+        status: "failure",
+        email: nextEmail,
+        message: "Email already exists",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Email already exists" });
     }
     if (existingUsernameUser) {
@@ -186,10 +223,30 @@ export const signup = async (req, res, next) => {
         to: nextEmail,
         provider: process.env.SMTP_HOST ? "smtp" : "resend",
       });
+      recordAuditLog({
+        req,
+        type: "error",
+        action: "signup_email",
+        status: "failure",
+        email: nextEmail,
+        message: error.message,
+        statusCode: 502,
+        meta: { provider: process.env.SMTP_HOST ? "smtp" : "resend" },
+      });
       return res.status(502).json({
         message: "Could not send verification email. Please check server email settings.",
       });
     }
+
+    recordAuditLog({
+      req,
+      type: "auth",
+      action: "signup_otp_sent",
+      status: "success",
+      email: nextEmail,
+      message: "Verification code sent",
+      statusCode: 200,
+    });
 
     res.status(200).json({
       success: true,
@@ -220,11 +277,29 @@ export const verifySignupOtp = async (req, res, next) => {
     const otp = sanitizePlainText(req.body?.otp, { maxLength: 6 });
 
     if (!nextEmail || !OTP_REGEX.test(otp)) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "signup_verify",
+        status: "failure",
+        email: nextEmail,
+        message: "Invalid OTP verification request",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Valid email and 6 digit OTP are required" });
     }
 
     const pending = consumePendingSignup(nextEmail, otp);
     if (!pending.ok) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "signup_verify",
+        status: "failure",
+        email: nextEmail,
+        message: pending.message,
+        statusCode: 400,
+      });
       return res.status(400).json({ message: pending.message });
     }
 
@@ -256,6 +331,16 @@ export const verifySignupOtp = async (req, res, next) => {
     setAuthCookies(res, tokens);
 
     enqueueNotification("user:welcome", { userId: String(newUser._id), email: newUser.email }).catch(() => {});
+    recordAuditLog({
+      req,
+      type: "auth",
+      action: "signup_complete",
+      status: "success",
+      userId: newUser._id,
+      email: newUser.email,
+      message: "Account created after email verification",
+      statusCode: 201,
+    });
 
     res.status(201).json(sanitizeUser(newUser));
   } catch (error) {
@@ -281,17 +366,45 @@ export const login = async (req, res, next) => {
     const nextEmail = sanitizePlainText(email, { maxLength: 254 }).toLowerCase();
 
     if (!nextEmail || !password) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "login",
+        status: "failure",
+        email: nextEmail,
+        message: "Missing email or password",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Email and password are required" });
     }
 
     let user = await User.findOne({ email: nextEmail });
 
     if (!user) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "login",
+        status: "failure",
+        email: nextEmail,
+        message: "Invalid credentials",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
     const isPasswordCorrect = await bcrypt.compare(password, user.password);
     if (!isPasswordCorrect) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "login",
+        status: "failure",
+        userId: user._id,
+        email: nextEmail,
+        message: "Invalid credentials",
+        statusCode: 400,
+      });
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
@@ -301,6 +414,16 @@ export const login = async (req, res, next) => {
     await addRefreshSession(user, tokens, req);
     setAuthCookies(res, tokens);
     await syncRegisteredUser(user);
+    recordAuditLog({
+      req,
+      type: "auth",
+      action: "login",
+      status: "success",
+      userId: user._id,
+      email: user.email,
+      message: "User logged in",
+      statusCode: 200,
+    });
 
     res.status(200).json(sanitizeUser(user));
   } catch (error) {
@@ -319,6 +442,15 @@ export const logout = (req, res, next) => {
           { _id: decoded.userId, "refreshSessions.tokenId": decoded.tokenId },
           { $set: { "refreshSessions.$.revokedAt": new Date() } }
         ).catch(() => {});
+        recordAuditLog({
+          req,
+          type: "auth",
+          action: "logout",
+          status: "success",
+          userId: decoded.userId,
+          message: "User logged out",
+          statusCode: 200,
+        });
       } catch {
         // Ignore invalid/expired refresh tokens; cookie clearing is enough.
       }
@@ -354,6 +486,16 @@ export const logoutAll = async (req, res, next) => {
     await user.save();
 
     clearAuthCookies(res);
+    recordAuditLog({
+      req,
+      type: "auth",
+      action: "logout_all",
+      status: "success",
+      userId,
+      email: user.email,
+      message: "User logged out from all devices",
+      statusCode: 200,
+    });
     res.status(200).json({ message: "Logged out from all devices" });
   } catch (error) {
     next(error);
@@ -440,6 +582,14 @@ export const refreshTokenController = async (req, res, next) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "refresh_token",
+        status: "failure",
+        message: "Missing refresh token",
+        statusCode: 401,
+      });
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -448,6 +598,15 @@ export const refreshTokenController = async (req, res, next) => {
 
     if (!user) {
       clearAuthCookies(res);
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "refresh_token",
+        status: "failure",
+        userId: decoded.userId,
+        message: "Refresh user not found",
+        statusCode: 401,
+      });
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -486,11 +645,29 @@ export const refreshTokenController = async (req, res, next) => {
     await syncRegisteredUser(user);
 
     setAuthCookies(res, tokens);
+    recordAuditLog({
+      req,
+      type: "auth",
+      action: "refresh_token",
+      status: "success",
+      userId: user._id,
+      email: user.email,
+      message: "Session refreshed",
+      statusCode: 200,
+    });
 
     res.status(200).json(sanitizeUser(user));
   } catch (error) {
     if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
       clearAuthCookies(res);
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "refresh_token",
+        status: "failure",
+        message: error.message,
+        statusCode: 401,
+      });
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -573,6 +750,18 @@ export const logoutDevice = async (req, res, next) => {
         // ignore
       }
     }
+
+    recordAuditLog({
+      req,
+      type: "auth",
+      action: "logout_device",
+      status: "success",
+      userId,
+      email: user.email,
+      message: "Device session revoked",
+      statusCode: 200,
+      meta: { tokenId },
+    });
 
     res.status(200).json({ message: "Device logged out" });
   } catch (error) {
