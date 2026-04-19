@@ -11,6 +11,7 @@ export const axiosInstance = axios.create({
 });
 
 let refreshPromise = null;
+const SESSION_HINT_KEY = "linepe.hasSession";
 
 axiosInstance.interceptors.response.use(
   (response) => response,
@@ -22,6 +23,7 @@ axiosInstance.interceptors.response.use(
     if (
       status !== 401 ||
       originalRequest?._retry ||
+      localStorage.getItem(SESSION_HINT_KEY) !== "true" ||
       url.includes("/auth/login") ||
       url.includes("/auth/signup") ||
       url.includes("/auth/refresh-token")
@@ -34,8 +36,10 @@ axiosInstance.interceptors.response.use(
     try {
       refreshPromise ||= axiosInstance.post("/auth/refresh-token");
       await refreshPromise;
+      localStorage.setItem(SESSION_HINT_KEY, "true");
       return axiosInstance(originalRequest);
     } catch (refreshError) {
+      localStorage.removeItem(SESSION_HINT_KEY);
       return Promise.reject(refreshError);
     } finally {
       refreshPromise = null;

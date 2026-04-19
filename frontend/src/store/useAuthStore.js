@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 import { SOCKET_EVENTS } from "../constants/socket.events";
 import { axiosInstance } from "../lib/axios.js";
 
+const SESSION_HINT_KEY = "linepe.hasSession";
+
 const BASE_URL =
   import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_API_ORIGIN ||
@@ -41,9 +43,14 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/auth/check");
       set({ authUser: res.data });
+      localStorage.setItem(SESSION_HINT_KEY, "true");
       get().connectSocket();
     } catch (error) {
-      console.log("Error in checkAuth:", error);
+      if (error?.response?.status !== 401) {
+        console.log("Error in checkAuth:", error);
+      }
+
+      localStorage.removeItem(SESSION_HINT_KEY);
       set({ authUser: null });
       get().disconnectSocket();
     } finally {
@@ -70,6 +77,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/signup/verify", { email, otp });
       set({ authUser: res.data });
+      localStorage.setItem(SESSION_HINT_KEY, "true");
       toast.success("Account created successfully");
       get().connectSocket();
       return res.data;
@@ -86,6 +94,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data });
+      localStorage.setItem(SESSION_HINT_KEY, "true");
       toast.success("Logged in successfully");
       get().connectSocket();
     } catch (error) {
@@ -103,6 +112,7 @@ export const useAuthStore = create((set, get) => ({
       toast.error(getErrorMessage(error, "Logout failed"));
     } finally {
       get().disconnectSocket();
+      localStorage.removeItem(SESSION_HINT_KEY);
       set({ authUser: null, onlineUsers: [] });
     }
   },
