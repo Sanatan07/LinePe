@@ -13,11 +13,13 @@ import { connectDB } from "./lib/db.js";
 import { getMetricsSnapshot, recordHttpMetric } from "./lib/metrics.js";
 import { logger } from "./lib/logger.js";
 import { getRedisClient } from "./lib/redis.js";
+import { ensureAppSecrets } from "./lib/secrets.js";
 import { app, server } from "./lib/socket.js";
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
 import mongoose from "mongoose";
 
 dotenv.config();
+ensureAppSecrets();
 
 const PORT = process.env.PORT || 5000;
 const __dirname = path.resolve();

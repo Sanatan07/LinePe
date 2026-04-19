@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import { getJwtRefreshSecret, getJwtSecret } from "./secrets.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -15,21 +16,14 @@ const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 
 export const generateAuthTokens = ({ userId, tokenVersion }) => {
-  if (!process.env.JWT_SECRET) {
-    throw new Error("Server misconfigured: JWT_SECRET is missing");
-  }
-  if (!process.env.JWT_REFRESH_SECRET) {
-    throw new Error("Server misconfigured: JWT_REFRESH_SECRET is missing");
-  }
-
-  const accessToken = jwt.sign({ userId, tokenVersion }, process.env.JWT_SECRET, {
+  const accessToken = jwt.sign({ userId, tokenVersion }, getJwtSecret(), {
     expiresIn: ACCESS_TOKEN_TTL_SECONDS,
   });
 
   const tokenId = crypto.randomUUID();
   const refreshToken = jwt.sign(
     { userId, tokenVersion, tokenId },
-    process.env.JWT_REFRESH_SECRET,
+    getJwtRefreshSecret(),
     { expiresIn: REFRESH_TOKEN_TTL_SECONDS }
   );
 

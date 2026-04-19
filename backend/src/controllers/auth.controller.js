@@ -8,6 +8,7 @@ import {
   generateAuthTokens,
   setAuthCookies,
 } from "../lib/utils.js";
+import { getJwtRefreshSecret } from "../lib/secrets.js";
 import { ensureUserHasUsername, syncRegisteredUser } from "../lib/account-registry.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
 import { enqueueNotification } from "../lib/queue.js";
@@ -228,7 +229,7 @@ export const logout = (req, res, next) => {
 
     if (refreshToken) {
       try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const decoded = jwt.verify(refreshToken, getJwtRefreshSecret());
         User.updateOne(
           { _id: decoded.userId, "refreshSessions.tokenId": decoded.tokenId },
           { $set: { "refreshSessions.$.revokedAt": new Date() } }
@@ -357,7 +358,7 @@ export const refreshTokenController = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const decoded = jwt.verify(refreshToken, getJwtRefreshSecret());
     let user = await User.findById(decoded.userId).select("-password");
 
     if (!user) {
@@ -427,7 +428,7 @@ export const getSessions = async (req, res, next) => {
     const refreshToken = req.cookies?.refreshToken;
     if (refreshToken) {
       try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const decoded = jwt.verify(refreshToken, getJwtRefreshSecret());
         if (String(decoded.userId) === String(userId)) currentTokenId = decoded.tokenId || null;
       } catch {
         currentTokenId = null;
@@ -479,7 +480,7 @@ export const logoutDevice = async (req, res, next) => {
     const refreshToken = req.cookies?.refreshToken;
     if (refreshToken) {
       try {
-        const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        const decoded = jwt.verify(refreshToken, getJwtRefreshSecret());
         if (decoded.tokenId === tokenId) {
           clearAuthCookies(res);
         }

@@ -12,6 +12,7 @@ import { getRedisClient } from "./redis.js";
 import { createInMemoryPresenceStore, createRedisPresenceStore } from "./presence.store.js";
 import { incrementMetric } from "./metrics.js";
 import { logger } from "./logger.js";
+import { getJwtSecret } from "./secrets.js";
 
 dotenv.config();
 
@@ -91,7 +92,7 @@ io.use((socket, next) => {
       return next(new Error("Unauthorized"));
     }
 
-    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+    const decoded = jwt.verify(accessToken, getJwtSecret());
     socket.user = { userId: String(decoded.userId) };
 
     next();

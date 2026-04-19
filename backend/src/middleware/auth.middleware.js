@@ -1,6 +1,7 @@
 import rateLimit from "express-rate-limit";
 import jwt from "jsonwebtoken";
 
+import { getJwtSecret } from "../lib/secrets.js";
 import User from "../models/user.model.js";
 
 export const protectRoute = async (req, res, next) => {
@@ -11,7 +12,7 @@ export const protectRoute = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized - No token provided" });
     }
 
-    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+    const decoded = jwt.verify(accessToken, getJwtSecret());
     const user = await User.findById(decoded.userId).select("-password");
 
     if (!user) {
