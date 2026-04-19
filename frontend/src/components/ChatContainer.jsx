@@ -26,8 +26,6 @@ const ChatContainer = () => {
     retryPendingMessage,
     searchChat,
     selectedConversation,
-    subscribeToMessages,
-    unsubscribeFromMessages,
   } = useChatStore();
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
@@ -46,22 +44,17 @@ const ChatContainer = () => {
 
     getMessages(selectedConversation);
     markMessagesAsRead(selectedConversation);
-    subscribeToMessages();
 
     if (selectedConversation.kind === "direct") {
       searchChat({ userId: selectedConversation.participant?._id, query: "" });
     } else {
       searchChat({ userId: "", query: "" });
     }
-
-    return () => unsubscribeFromMessages();
   }, [
     selectedConversation?._id,
     getMessages,
     markMessagesAsRead,
     searchChat,
-    subscribeToMessages,
-    unsubscribeFromMessages,
   ]);
 
   useEffect(() => {
