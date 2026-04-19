@@ -5,7 +5,7 @@ import App from "./App.jsx";
 import { BrowserRouter } from "react-router-dom";
 
 // apply saved theme before React loads
-const savedTheme = localStorage.getItem("chat-theme") || "coffee";
+const savedTheme = localStorage.getItem("chat-theme") || "light";
 document.documentElement.setAttribute("data-theme", savedTheme);
 
 createRoot(document.getElementById("root")).render(
