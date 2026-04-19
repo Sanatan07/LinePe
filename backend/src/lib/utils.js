@@ -3,11 +3,15 @@ import crypto from "crypto";
 import { getJwtRefreshSecret, getJwtSecret } from "./secrets.js";
 
 const isProduction = process.env.NODE_ENV === "production";
+const cookieSameSite = process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "strict");
+const cookieSecure = process.env.COOKIE_SECURE
+  ? process.env.COOKIE_SECURE === "true"
+  : isProduction;
 
 const baseCookieOptions = {
   httpOnly: true,
-  sameSite: "strict",
-  secure: isProduction,
+  sameSite: cookieSameSite,
+  secure: cookieSecure,
 };
 
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;

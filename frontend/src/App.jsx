@@ -16,7 +16,7 @@ import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth, onlineUsers } = useAuthStore();
+  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
   const { theme } = useThemeStore();
 
   // check authentication on app load
@@ -29,9 +29,6 @@ const App = () => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  console.log({ onlineUsers });
-  console.log({ authUser });
-
   if (isCheckingAuth && !authUser)
     return (
       <div className="flex items-center justify-center h-screen">
@@ -41,7 +38,7 @@ const App = () => {
 
   return (
     <div>
-      <Navbar />
+      <NavBar />
 
       <Routes>
         <Route

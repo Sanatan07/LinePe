@@ -12,16 +12,6 @@ const getUserId = (value) => String(value?._id || value || "");
 
 const getConversationId = (value) => String(value?._id || value?.conversationId || value || "");
 
-const isSameDirectConversation = (message, selectedUserId, authUserId) => {
-  const senderId = getUserId(message.senderId);
-  const receiverId = getUserId(message.receiverId);
-
-  return (
-    (senderId === authUserId && receiverId === selectedUserId) ||
-    (senderId === selectedUserId && receiverId === authUserId)
-  );
-};
-
 const upsertMessage = (messages, incomingMessage) => {
   const incomingMessageId = getMessageId(incomingMessage);
   const incomingClientMessageId = getClientMessageId(incomingMessage);
@@ -408,7 +398,7 @@ export const useChatStore = create((set, get) => ({
       }));
 
       return olderMessages.length;
-    } catch (error) {
+    } catch {
       return null;
     } finally {
       set({ isLoadingOlderMessages: false });
@@ -441,7 +431,7 @@ export const useChatStore = create((set, get) => ({
           unreadCount: 0,
         }),
       }));
-    } catch (error) {
+    } catch {
       // Silent: failing to mark read shouldn't block chat UX.
     }
   },
@@ -567,7 +557,6 @@ export const useChatStore = create((set, get) => ({
       const authUserId = getUserId(authUser);
       const selectedConversationId = getConversationId(get().selectedConversation);
 
-      const senderId = getUserId(incomingMessage.senderId);
       const receiverId = getUserId(incomingMessage.receiverId);
       const incomingConversationId = getConversationId(incomingMessage?.conversationId);
       const isIncomingToMe =

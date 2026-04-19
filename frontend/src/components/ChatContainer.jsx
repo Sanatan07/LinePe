@@ -47,7 +47,6 @@ const ChatContainer = () => {
     getMessages(selectedConversation);
     markMessagesAsRead(selectedConversation);
     subscribeToMessages();
-    setSearchQuery("");
 
     if (selectedConversation.kind === "direct") {
       searchChat({ userId: selectedConversation.participant?._id, query: "" });

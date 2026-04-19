@@ -51,13 +51,10 @@ const Sidebar = () => {
 
     const trimmed = newChatQuery.trim();
     if (!trimmed) {
-      setLastResolvedQuery("");
-      setInviteSentPhone("");
       clearUserSearch();
       return undefined;
     }
 
-    setInviteSentPhone("");
     const timeoutId = setTimeout(async () => {
       setLastResolvedQuery(trimmed);
       await searchUsers(trimmed);
@@ -343,7 +340,11 @@ const Sidebar = () => {
                     className="grow"
                     placeholder="Search by username or full name"
                     value={newChatQuery}
-                    onChange={(e) => setNewChatQuery(e.target.value)}
+                    onChange={(e) => {
+                      setNewChatQuery(e.target.value);
+                      setLastResolvedQuery("");
+                      setInviteSentPhone("");
+                    }}
                     maxLength={50}
                   />
                 </label>
@@ -408,7 +409,11 @@ const Sidebar = () => {
                     className="grow"
                     placeholder="Search by +91 phone number"
                     value={newChatQuery}
-                    onChange={(e) => setNewChatQuery(e.target.value)}
+                    onChange={(e) => {
+                      setNewChatQuery(e.target.value);
+                      setLastResolvedQuery("");
+                      setInviteSentPhone("");
+                    }}
                     maxLength={20}
                   />
                 </label>

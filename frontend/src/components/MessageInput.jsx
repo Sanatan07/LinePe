@@ -8,12 +8,19 @@ import { axiosInstance } from "../lib/axios";
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F]/g;
 const ZERO_WIDTH_REGEX = /[\u200B-\u200D\uFEFF]/g;
+
+const stripControlChars = (value) =>
+  Array.from(value)
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+      return code > 31 && code !== 127;
+    })
+    .join("");
 
 const sanitizePlainText = (value) =>
   typeof value === "string"
-    ? value.replace(CONTROL_CHARS_REGEX, "").replace(ZERO_WIDTH_REGEX, "")
+    ? stripControlChars(value).replace(ZERO_WIDTH_REGEX, "")
     : "";
 
 const MessageInput = () => {
