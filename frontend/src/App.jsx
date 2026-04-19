@@ -1,4 +1,4 @@
-import Navbar from "./components/Navbar";
+import NavBar from "./components/NavBar";
 
 import HomePage from "./pages/HomePage";
 import InvitePage from "./pages/InvitePage";
