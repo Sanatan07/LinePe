@@ -3,7 +3,13 @@ import crypto from "crypto";
 import { getJwtRefreshSecret, getJwtSecret } from "./secrets.js";
 
 const isProduction = process.env.NODE_ENV === "production";
-const cookieSameSite = process.env.COOKIE_SAME_SITE || (isProduction ? "none" : "strict");
+const normalizeSameSite = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["strict", "lax", "none"].includes(normalized) ? normalized : null;
+};
+
+const cookieSameSite =
+  normalizeSameSite(process.env.COOKIE_SAME_SITE) || (isProduction ? "none" : "strict");
 const cookieSecure = process.env.COOKIE_SECURE
   ? process.env.COOKIE_SECURE === "true"
   : isProduction;

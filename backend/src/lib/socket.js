@@ -18,11 +18,14 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+const clientUrls = (process.env.CLIENT_URLS || process.env.CLIENT_URL || "http://localhost:5173")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 const io = new Server(server, {
   cors: {
-    origin: [clientUrl],
+    origin: clientUrls,
     credentials: true,
   },
 });
