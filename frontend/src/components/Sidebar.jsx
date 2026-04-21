@@ -72,9 +72,13 @@ const Sidebar = () => {
     }
 
     if (q) {
-      list = list.filter((conversation) =>
-        String(conversation.participant?.fullName || "").toLowerCase().includes(q)
-      );
+      list = list.filter((conversation) => {
+        const label =
+          conversation.kind === "group"
+            ? conversation.group?.name
+            : conversation.participant?.fullName;
+        return String(label || "").toLowerCase().includes(q);
+      });
     }
 
     return list;
@@ -155,7 +159,9 @@ const Sidebar = () => {
           const unreadCount = Number(conversation.unreadCount || 0);
           const previewText =
             conversation.lastMessage?.text ||
-            (conversation.lastMessage?.image ? "Photo" : "No messages yet");
+            (conversation.lastMessage?.image || conversation.lastMessage?.attachments?.length
+              ? "Photo"
+              : "No messages yet");
 
           return (
             <button

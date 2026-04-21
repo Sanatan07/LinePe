@@ -280,6 +280,122 @@ const requireGroupAdmin = (conversation, userId) =>
   Array.isArray(conversation.admins) &&
   conversation.admins.some((adminId) => String(adminId) === String(userId));
 
+const populateGroupConversation = (conversationId) =>
+  Conversation.findById(conversationId)
+    .populate("participants", "fullName profilePic lastSeen")
+    .populate("admins", "fullName profilePic")
+    .populate("createdBy", "fullName profilePic")
+    .populate({
+      path: "lastMessage",
+      populate: [
+        { path: "senderId", select: "fullName profilePic" },
+        { path: "receiverId", select: "fullName profilePic" },
+      ],
+    });
+
+export const updateGroupConversation = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const conversationId = req.params.id;
+    const groupName = sanitizePlainText(req.body?.name, { maxLength: 60 });
+    const groupAvatar = sanitizePlainText(req.body?.avatar, { maxLength: 500 });
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation id" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      kind: "group",
+      participants: currentUserId,
+    });
+
+    if (!conversation) return res.status(404).json({ message: "Group not found" });
+    if (!requireGroupAdmin(conversation, currentUserId)) {
+      return res.status(403).json({ message: "Admin permission required" });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "name")) {
+      if (!groupName) return res.status(400).json({ message: "Group name is required" });
+      conversation.groupName = groupName;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "avatar")) {
+      conversation.groupAvatar = groupAvatar;
+    }
+
+    await conversation.save();
+
+    const populated = await populateGroupConversation(conversation._id);
+    res.status(200).json(formatConversationForUser(populated, currentUserId));
+  } catch (error) {
+    console.log("Error in updateGroupConversation controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getGroupMedia = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const conversationId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation id" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      kind: "group",
+      participants: currentUserId,
+    }).select("_id");
+
+    if (!conversation) return res.status(404).json({ message: "Group not found" });
+
+    const messages = await Message.find({
+      conversationId,
+      $or: [
+        { image: { $exists: true, $ne: "" } },
+        { "attachments.type": "image" },
+      ],
+    })
+      .select("_id image attachments senderId createdAt")
+      .populate("senderId", "fullName profilePic")
+      .sort({ createdAt: -1 })
+      .limit(200);
+
+    const media = messages.flatMap((message) => {
+      const attachmentMedia = (message.attachments || [])
+        .filter((attachment) => attachment?.type === "image" && attachment?.url)
+        .map((attachment) => ({
+          _id: `${message._id}:${attachment.url}`,
+          messageId: message._id,
+          url: attachment.url,
+          originalName: attachment.originalName || "Group media",
+          senderId: message.senderId,
+          createdAt: message.createdAt,
+        }));
+
+      if (message.image) {
+        attachmentMedia.unshift({
+          _id: `${message._id}:image`,
+          messageId: message._id,
+          url: message.image,
+          originalName: "Group media",
+          senderId: message.senderId,
+          createdAt: message.createdAt,
+        });
+      }
+
+      return attachmentMedia;
+    });
+
+    res.status(200).json({ media });
+  } catch (error) {
+    console.log("Error in getGroupMedia controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const addGroupMembers = async (req, res) => {
   try {
     const currentUserId = req.user._id;
@@ -325,17 +441,7 @@ export const addGroupMembers = async (req, res) => {
 
     await conversation.save();
 
-    const populated = await Conversation.findById(conversation._id)
-      .populate("participants", "fullName profilePic lastSeen")
-      .populate("admins", "fullName profilePic")
-      .populate("createdBy", "fullName profilePic")
-      .populate({
-        path: "lastMessage",
-        populate: [
-          { path: "senderId", select: "fullName profilePic" },
-          { path: "receiverId", select: "fullName profilePic" },
-        ],
-      });
+    const populated = await populateGroupConversation(conversation._id);
 
     res.status(200).json(formatConversationForUser(populated, currentUserId));
   } catch (error) {
@@ -389,7 +495,8 @@ export const removeGroupMember = async (req, res) => {
 
     await conversation.save();
 
-    res.status(200).json({ message: "Member removed" });
+    const populated = await populateGroupConversation(conversation._id);
+    res.status(200).json(formatConversationForUser(populated, currentUserId));
   } catch (error) {
     console.log("Error in removeGroupMember controller:", error.message);
     res.status(500).json({ message: "Internal server error" });
@@ -430,7 +537,8 @@ export const setGroupAdmin = async (req, res) => {
     conversation.admins = Array.from(adminSet);
     await conversation.save();
 
-    res.status(200).json({ memberId, admin: enabled });
+    const populated = await populateGroupConversation(conversation._id);
+    res.status(200).json(formatConversationForUser(populated, currentUserId));
   } catch (error) {
     console.log("Error in setGroupAdmin controller:", error.message);
     res.status(500).json({ message: "Internal server error" });

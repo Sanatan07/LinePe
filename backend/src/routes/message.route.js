@@ -18,9 +18,11 @@ import {
   setConversationFlag,
   deleteDirectConversation,
   createGroupConversation,
+  getGroupMedia,
   addGroupMembers,
   removeGroupMember,
   setGroupAdmin,
+  updateGroupConversation,
 } from "../controllers/conversation.controller.js";
 import { imageUpload } from "../middleware/upload.middleware.js";
 
@@ -33,6 +35,8 @@ router.post("/conversations/:id/:flag", protectRoute, messageLimiter, setConvers
 router.delete("/conversations/:id", protectRoute, messageLimiter, deleteDirectConversation);
 
 router.post("/groups", protectRoute, messageLimiter, createGroupConversation);
+router.patch("/groups/:id", protectRoute, messageLimiter, updateGroupConversation);
+router.get("/groups/:id/media", protectRoute, getGroupMedia);
 router.post("/groups/:id/members", protectRoute, messageLimiter, addGroupMembers);
 router.delete("/groups/:id/members/:memberId", protectRoute, messageLimiter, removeGroupMember);
 router.post("/groups/:id/admins/:memberId", protectRoute, messageLimiter, setGroupAdmin);

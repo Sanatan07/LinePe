@@ -82,6 +82,7 @@ export const useChatStore = create((set, get) => ({
   selectedConversation: null,
   typingUsers: {},
   chatSearchResults: [],
+  groupMediaByConversationId: {},
   highlightMessageId: null,
   messagesCursor: null,
   messagesHasMore: true,
@@ -91,6 +92,7 @@ export const useChatStore = create((set, get) => ({
   isConversationsLoading: false,
   isChatSearchLoading: false,
   isUserSearchLoading: false,
+  isGroupMediaLoading: false,
   isOpeningConversation: false,
   isSendingInvite: false,
   isGroupCreating: false,
@@ -160,6 +162,128 @@ export const useChatStore = create((set, get) => ({
       await get().getConversations();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update conversation");
+    }
+  },
+
+  updateGroup: async ({ conversationId, name, avatar }) => {
+    if (!conversationId) return null;
+
+    try {
+      const payload = {};
+      if (typeof name === "string") payload.name = name.trim();
+      if (typeof avatar === "string") payload.avatar = avatar;
+
+      const res = await axiosInstance.patch(`/messages/groups/${conversationId}`, payload);
+      const updatedConversation = res.data;
+
+      set((state) => ({
+        conversations: upsertConversation(state.conversations, updatedConversation),
+        selectedConversation:
+          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
+            ? updatedConversation
+            : state.selectedConversation,
+      }));
+
+      toast.success("Group updated");
+      return updatedConversation;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update group");
+      return null;
+    }
+  },
+
+  getGroupMedia: async (conversationId) => {
+    if (!conversationId) return [];
+
+    set({ isGroupMediaLoading: true });
+    try {
+      const res = await axiosInstance.get(`/messages/groups/${conversationId}/media`);
+      const media = Array.isArray(res.data?.media) ? res.data.media : [];
+      set((state) => ({
+        groupMediaByConversationId: {
+          ...state.groupMediaByConversationId,
+          [conversationId]: media,
+        },
+      }));
+      return media;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to load group media");
+      return [];
+    } finally {
+      set({ isGroupMediaLoading: false });
+    }
+  },
+
+  addGroupMembers: async ({ conversationId, memberIds }) => {
+    if (!conversationId) return null;
+
+    try {
+      const res = await axiosInstance.post(`/messages/groups/${conversationId}/members`, {
+        memberIds: Array.isArray(memberIds) ? memberIds.filter(Boolean) : [],
+      });
+      const updatedConversation = res.data;
+
+      set((state) => ({
+        conversations: upsertConversation(state.conversations, updatedConversation),
+        selectedConversation:
+          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
+            ? updatedConversation
+            : state.selectedConversation,
+      }));
+
+      toast.success("Members added");
+      return updatedConversation;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to add members");
+      return null;
+    }
+  },
+
+  removeGroupMember: async ({ conversationId, memberId }) => {
+    if (!conversationId || !memberId) return null;
+
+    try {
+      const res = await axiosInstance.delete(`/messages/groups/${conversationId}/members/${memberId}`);
+      const updatedConversation = res.data;
+
+      set((state) => ({
+        conversations: upsertConversation(state.conversations, updatedConversation),
+        selectedConversation:
+          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
+            ? updatedConversation
+            : state.selectedConversation,
+      }));
+
+      toast.success("Member removed");
+      return updatedConversation;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to remove member");
+      return null;
+    }
+  },
+
+  setGroupAdmin: async ({ conversationId, memberId, enabled }) => {
+    if (!conversationId || !memberId) return null;
+
+    try {
+      const res = await axiosInstance.post(`/messages/groups/${conversationId}/admins/${memberId}`, {
+        enabled,
+      });
+      const updatedConversation = res.data;
+
+      set((state) => ({
+        conversations: upsertConversation(state.conversations, updatedConversation),
+        selectedConversation:
+          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
+            ? updatedConversation
+            : state.selectedConversation,
+      }));
+
+      toast.success(enabled ? "Admin added" : "Admin removed");
+      return updatedConversation;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update admin");
+      return null;
     }
   },
 
