@@ -419,18 +419,18 @@ const ChatHeader = () => {
                 const isMemberAdmin = adminIds.has(memberId);
                 const isSelf = memberId === String(authUser?._id || "");
                 return (
-                  <div key={memberId} className="group/member flex items-center gap-3 p-2 rounded-md hover:bg-base-200">
+                  <div key={memberId} className="group flex items-center gap-3 p-2 rounded-md hover:bg-base-200">
                     <img src={member?.profilePic || "/avatar.png"} alt={member?.fullName || "Member"} className="size-10 rounded-full object-cover" />
                     <div className="min-w-0 flex-1">
                       <div className="font-medium truncate">{member?.fullName || "Member"} {isSelf ? "(You)" : ""}</div>
                       <div className="text-xs text-base-content/60">{isMemberAdmin ? "Admin" : "Member"}</div>
                     </div>
                     {isCurrentUserAdmin && !isSelf && (
-                      <div className="dropdown dropdown-end opacity-0 group-hover/member:opacity-100 transition-opacity">
+                      <div className="dropdown dropdown-end invisible group-hover:visible focus-within:visible">
                         <button type="button" className="btn btn-ghost btn-sm btn-square">
                           <MoreVertical className="size-4" />
                         </button>
-                        <ul className="dropdown-content menu bg-base-100 rounded-box z-[1] w-48 p-2 shadow border border-base-300">
+                        <ul className="dropdown-content menu bg-base-100 rounded-box z-50 w-48 p-2 shadow border border-base-300">
                           <li>
                             <button
                               type="button"
