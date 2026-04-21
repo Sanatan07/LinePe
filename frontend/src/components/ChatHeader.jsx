@@ -218,18 +218,22 @@ const ChatHeader = () => {
                   </button>
                 </li>
               )}
-              {!isDirect && isCurrentUserAdmin && (
+              {!isDirect && (
                 <li>
                   <button
                     type="button"
                     onClick={() => {
+                      if (!isCurrentUserAdmin) {
+                        toast.error("Only group admins can add members");
+                        return;
+                      }
                       setDraftGroupName(group?.name || "");
                       setIsGroupPanelOpen(true);
                       setIsAddMembersOpen(true);
                     }}
                   >
                     <Plus className="size-4" />
-                    Add members
+                    Add new member
                   </button>
                 </li>
               )}
