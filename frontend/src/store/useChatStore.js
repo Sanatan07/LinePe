@@ -261,6 +261,38 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  leaveGroup: async (conversationId) => {
+    const targetConversationId = getConversationId(conversationId);
+    if (!targetConversationId) return false;
+
+    try {
+      await axiosInstance.patch(`/messages/group/${targetConversationId}/leave`);
+
+      set((state) => ({
+        conversations: (state.conversations || []).filter(
+          (item) => String(item?._id || "") !== targetConversationId
+        ),
+        selectedConversation:
+          String(state.selectedConversation?._id || "") === targetConversationId
+            ? null
+            : state.selectedConversation,
+        messages:
+          String(state.selectedConversation?._id || "") === targetConversationId
+            ? []
+            : state.messages,
+        typingUsers: [],
+        chatSearchResults: [],
+        highlightMessageId: null,
+      }));
+
+      toast.success("Left group");
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to leave group");
+      return false;
+    }
+  },
+
   setGroupAdmin: async ({ conversationId, memberId, enabled }) => {
     if (!conversationId || !memberId) return null;
 

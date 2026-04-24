@@ -10,17 +10,20 @@ const conversationSchema = new mongoose.Schema(
       type: String,
       enum: ["direct", "group"],
       default: "direct",
+      alias: "type",
       index: true,
     },
     groupName: {
       type: String,
       default: "",
       trim: true,
+      alias: "name",
     },
     groupAvatar: {
       type: String,
       default: "",
       trim: true,
+      alias: "groupImage",
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -58,6 +61,7 @@ const conversationSchema = new mongoose.Schema(
     lastActivityAt: {
       type: Date,
       default: Date.now,
+      alias: "lastActivity",
     },
     mutedBy: {
       type: Map,

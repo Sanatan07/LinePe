@@ -470,8 +470,12 @@ export const removeGroupMember = async (req, res) => {
     const isAdmin = requireGroupAdmin(conversation, currentUserId);
     const isSelf = String(memberId) === String(currentUserId);
 
-    if (!isAdmin && !isSelf) {
+    if (!isAdmin) {
       return res.status(403).json({ message: "Admin permission required" });
+    }
+
+    if (isSelf) {
+      return res.status(400).json({ message: "Use the leave group action to remove yourself" });
     }
 
     conversation.participants = (conversation.participants || []).filter((id) => String(id) !== String(memberId));
@@ -541,6 +545,64 @@ export const setGroupAdmin = async (req, res) => {
     res.status(200).json(formatConversationForUser(populated, currentUserId));
   } catch (error) {
     console.log("Error in setGroupAdmin controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const leaveGroup = async (req, res) => {
+  try {
+    const currentUserId = req.user._id;
+    const conversationId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+      return res.status(400).json({ message: "Invalid conversation id" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      kind: "group",
+      participants: currentUserId,
+    });
+
+    if (!conversation) return res.status(404).json({ message: "Group not found" });
+
+    conversation.participants = (conversation.participants || []).filter(
+      (id) => String(id) !== String(currentUserId)
+    );
+    conversation.admins = (conversation.admins || []).filter(
+      (id) => String(id) !== String(currentUserId)
+    );
+
+    conversation.unreadCounts?.delete(String(currentUserId));
+    conversation.lastReadAt?.delete(String(currentUserId));
+    conversation.mutedBy?.delete(String(currentUserId));
+    conversation.archivedBy?.delete(String(currentUserId));
+    conversation.pinnedBy?.delete(String(currentUserId));
+    conversation.hiddenBy?.delete(String(currentUserId));
+
+    if (conversation.participants.length === 0) {
+      await Message.deleteMany({ conversationId: conversation._id });
+      await Conversation.deleteOne({ _id: conversation._id });
+      return res.status(200).json({
+        conversationId,
+        left: true,
+        deleted: true,
+      });
+    }
+
+    if ((conversation.admins || []).length === 0) {
+      conversation.admins = [conversation.participants[0]];
+    }
+
+    await conversation.save();
+
+    res.status(200).json({
+      conversationId,
+      left: true,
+      deleted: false,
+    });
+  } catch (error) {
+    console.log("Error in leaveGroup controller:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };
