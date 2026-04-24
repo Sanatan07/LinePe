@@ -15,6 +15,14 @@ const BASE_URL =
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.message || error?.message || fallbackMessage;
 
+const joinSelectedConversationRoom = async (socket) => {
+  if (!socket?.connected) return;
+  const { useChatStore } = await import("./useChatStore");
+  const selectedConversationId = String(useChatStore.getState().selectedConversation?._id || "");
+  if (!selectedConversationId) return;
+  socket.emit(SOCKET_EVENTS.CONVERSATION_JOIN, selectedConversationId);
+};
+
 const resyncChatState = async () => {
   const { useChatStore } = await import("./useChatStore");
   const chatStore = useChatStore.getState();
@@ -153,18 +161,21 @@ export const useAuthStore = create((set, get) => ({
 
     nextSocket.on("connect", () => {
       set({ socket: nextSocket });
+      joinSelectedConversationRoom(nextSocket).catch(() => {});
       nextSocket.emit(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST);
       resyncChatState().catch(() => {});
     });
 
     nextSocket.on("reconnect", () => {
       set((state) => ({ ...state, socket: nextSocket }));
+      joinSelectedConversationRoom(nextSocket).catch(() => {});
       nextSocket.emit(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST);
       resyncChatState().catch(() => {});
     });
 
     nextSocket.io.on("reconnect", () => {
       set({ socket: nextSocket });
+      joinSelectedConversationRoom(nextSocket).catch(() => {});
       nextSocket.emit(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST);
       resyncChatState().catch(() => {});
     });
