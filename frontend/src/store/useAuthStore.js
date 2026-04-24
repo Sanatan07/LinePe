@@ -133,11 +133,24 @@ export const useAuthStore = create((set, get) => ({
       const res = await axiosInstance.put("/auth/update-profile", data);
       set({ authUser: res.data });
       toast.success("Profile updated successfully");
+      return res.data;
     } catch (error) {
       console.log("error in update profile:", error);
       toast.error(getErrorMessage(error, "Profile update failed"));
+      return null;
     } finally {
       set({ isUpdatingProfile: false });
+    }
+  },
+
+  sendVerificationEmail: async () => {
+    try {
+      const res = await axiosInstance.post("/auth/send-verification-email");
+      toast.success(res.data?.message || "Verification email sent");
+      return true;
+    } catch (error) {
+      toast.error(getErrorMessage(error, "Failed to send verification email"));
+      return false;
     }
   },
 

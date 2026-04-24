@@ -1,14 +1,20 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { Camera, Mail, User } from "lucide-react";
 import toast from "react-hot-toast";
 
 const ProfilePage = () => {
-  const { authUser, isUpdatingProfile, updateProfile } = useAuthStore();
+  const { authUser, isUpdatingProfile, updateProfile, sendVerificationEmail } = useAuthStore();
   const [selectedImg, setSelectedImg] = useState(null);
   const [username, setUsername] = useState("");
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
 
   const currentUsername = username || authUser?.username || "";
+  const emailVerified = useMemo(() => Boolean(authUser?.isEmailVerified), [authUser?.isEmailVerified]);
 
   const handleSaveUsername = async () => {
     const nextUsername = currentUsername.trim().toLowerCase();
@@ -37,6 +43,29 @@ const ProfilePage = () => {
       setSelectedImg(base64Image);
       await updateProfile({ profilePic: base64Image });
     };
+  };
+
+  const handlePasswordChange = async () => {
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      return toast.error("All password fields are required");
+    }
+    if (passwordForm.newPassword.length < 12) {
+      return toast.error("New password must be at least 12 characters");
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return toast.error("New password and confirm password must match");
+    }
+
+    const result = await updateProfile({
+      currentPassword: passwordForm.currentPassword,
+      newPassword: passwordForm.newPassword,
+    });
+    if (!result) return;
+    setPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
   };
 
   return (
@@ -126,7 +155,64 @@ const ProfilePage = () => {
                 <Mail className="w-4 h-4" />
                 Email Address
               </div>
-              <p className="px-4 py-2.5 bg-base-200 rounded-lg border">{authUser?.email}</p>
+              <div className="space-y-2">
+                <p className="px-4 py-2.5 bg-base-200 rounded-lg border">{authUser?.email}</p>
+                <div className="flex items-center justify-between text-sm">
+                  <span className={emailVerified ? "text-success" : "text-warning"}>
+                    {emailVerified ? "Email verified" : "Email not verified"}
+                  </span>
+                  {!emailVerified && (
+                    <button
+                      type="button"
+                      className="btn btn-xs btn-outline"
+                      onClick={sendVerificationEmail}
+                    >
+                      Send verification email
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-sm text-zinc-400 flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Change Password
+              </div>
+              <input
+                type="password"
+                className="input input-bordered w-full"
+                placeholder="Current password"
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, currentPassword: e.target.value }))}
+              />
+              <input
+                type="password"
+                className="input input-bordered w-full"
+                placeholder="New password"
+                value={passwordForm.newPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+              />
+              <input
+                type="password"
+                className="input input-bordered w-full"
+                placeholder="Confirm new password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={
+                  isUpdatingProfile ||
+                  !passwordForm.currentPassword ||
+                  !passwordForm.newPassword ||
+                  !passwordForm.confirmPassword
+                }
+                onClick={handlePasswordChange}
+              >
+                {isUpdatingProfile ? "Saving..." : "Change Password"}
+              </button>
             </div>
           </div>
 
