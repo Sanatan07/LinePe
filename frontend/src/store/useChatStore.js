@@ -80,7 +80,7 @@ export const useChatStore = create((set, get) => ({
   users: [],
   searchResults: [],
   selectedConversation: null,
-  typingUsers: {},
+  typingUsers: [],
   chatSearchResults: [],
   groupMediaByConversationId: {},
   highlightMessageId: null,
@@ -775,46 +775,40 @@ export const useChatStore = create((set, get) => ({
     };
 
     const handleTypingStart = (payload) => {
-      const fromUserId = getUserId(payload?.fromUserId);
-      if (!fromUserId) return;
-
-      const selectedConversation = get().selectedConversation;
-      const selectedUserId =
-        selectedConversation?.kind === "direct" ? getUserId(selectedConversation?.participant) : "";
-      if (!selectedUserId || selectedUserId !== fromUserId) return;
+      const userId = getUserId(payload?.userId);
+      const conversationId = getConversationId(payload?.conversationId);
+      const selectedConversationId = getConversationId(get().selectedConversation);
+      if (!userId || !conversationId || conversationId !== selectedConversationId) return;
 
       set((state) => ({
-        typingUsers: { ...state.typingUsers, [fromUserId]: true },
+        typingUsers: [...new Set([...(Array.isArray(state.typingUsers) ? state.typingUsers : []), userId])],
       }));
 
-      const existingTimeout = typingTimeoutsByUserId.get(fromUserId);
+      const existingTimeout = typingTimeoutsByUserId.get(userId);
       if (existingTimeout) clearTimeout(existingTimeout);
 
       const timeoutId = setTimeout(() => {
-        typingTimeoutsByUserId.delete(fromUserId);
+        typingTimeoutsByUserId.delete(userId);
         set((state) => ({
-          typingUsers: { ...state.typingUsers, [fromUserId]: false },
+          typingUsers: (Array.isArray(state.typingUsers) ? state.typingUsers : []).filter((id) => id !== userId),
         }));
       }, 3500);
 
-      typingTimeoutsByUserId.set(fromUserId, timeoutId);
+      typingTimeoutsByUserId.set(userId, timeoutId);
     };
 
     const handleTypingStop = (payload) => {
-      const fromUserId = getUserId(payload?.fromUserId);
-      if (!fromUserId) return;
+      const userId = getUserId(payload?.userId);
+      const conversationId = getConversationId(payload?.conversationId);
+      const selectedConversationId = getConversationId(get().selectedConversation);
+      if (!userId || !conversationId || conversationId !== selectedConversationId) return;
 
-      const selectedConversation = get().selectedConversation;
-      const selectedUserId =
-        selectedConversation?.kind === "direct" ? getUserId(selectedConversation?.participant) : "";
-      if (!selectedUserId || selectedUserId !== fromUserId) return;
-
-      const existingTimeout = typingTimeoutsByUserId.get(fromUserId);
+      const existingTimeout = typingTimeoutsByUserId.get(userId);
       if (existingTimeout) clearTimeout(existingTimeout);
-      typingTimeoutsByUserId.delete(fromUserId);
+      typingTimeoutsByUserId.delete(userId);
 
       set((state) => ({
-        typingUsers: { ...state.typingUsers, [fromUserId]: false },
+        typingUsers: (Array.isArray(state.typingUsers) ? state.typingUsers : []).filter((id) => id !== userId),
       }));
     };
 
@@ -865,7 +859,7 @@ export const useChatStore = create((set, get) => ({
   setSelectedConversation: (selectedConversation) => {
     set((state) => ({
       selectedConversation,
-      typingUsers: state.typingUsers,
+      typingUsers: [],
       chatSearchResults: [],
       highlightMessageId: null,
     }));

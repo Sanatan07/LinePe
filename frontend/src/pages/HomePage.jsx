@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { SOCKET_EVENTS } from "../constants/socket.events";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 
@@ -17,6 +18,19 @@ const HomePage = () => {
     subscribeToMessages();
     return () => unsubscribeFromMessages();
   }, [authUser, socket, subscribeToMessages, unsubscribeFromMessages]);
+
+  useEffect(() => {
+    if (!socket?.connected) return undefined;
+
+    const conversationId = String(selectedConversation?._id || "");
+    if (!conversationId) return undefined;
+
+    socket.emit(SOCKET_EVENTS.CONVERSATION_JOIN, conversationId);
+
+    return () => {
+      socket.emit(SOCKET_EVENTS.CONVERSATION_LEAVE, conversationId);
+    };
+  }, [socket, socket?.connected, selectedConversation?._id]);
 
   return (
     <div className="h-screen bg-base-200">

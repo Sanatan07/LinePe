@@ -119,27 +119,35 @@ io.on("connection", (socket) => {
     presenceStore.touchUser?.(userId).catch?.(() => {});
   }, 30 * 1000);
 
-  socket.on(SOCKET_EVENTS.TYPING_START, (payload = {}) => {
-    const toUserId = String(payload?.toUserId || "");
-    if (!toUserId || toUserId === String(userId)) {
-      return;
-    }
+  socket.on(SOCKET_EVENTS.CONVERSATION_JOIN, (conversationId) => {
+    const roomId = String(conversationId || "");
+    if (!roomId) return;
+    socket.join(roomId);
+  });
 
-    emitMessageEvent(toUserId, SOCKET_EVENTS.TYPING_START, {
-      fromUserId: String(userId),
-      toUserId,
+  socket.on(SOCKET_EVENTS.CONVERSATION_LEAVE, (conversationId) => {
+    const roomId = String(conversationId || "");
+    if (!roomId) return;
+    socket.leave(roomId);
+  });
+
+  socket.on(SOCKET_EVENTS.TYPING_START, (payload = {}) => {
+    const conversationId = String(payload?.conversationId || "");
+    if (!conversationId) return;
+
+    socket.to(conversationId).emit(SOCKET_EVENTS.TYPING_START, {
+      conversationId,
+      userId: String(userId),
     });
   });
 
   socket.on(SOCKET_EVENTS.TYPING_STOP, (payload = {}) => {
-    const toUserId = String(payload?.toUserId || "");
-    if (!toUserId || toUserId === String(userId)) {
-      return;
-    }
+    const conversationId = String(payload?.conversationId || "");
+    if (!conversationId) return;
 
-    emitMessageEvent(toUserId, SOCKET_EVENTS.TYPING_STOP, {
-      fromUserId: String(userId),
-      toUserId,
+    socket.to(conversationId).emit(SOCKET_EVENTS.TYPING_STOP, {
+      conversationId,
+      userId: String(userId),
     });
   });
 

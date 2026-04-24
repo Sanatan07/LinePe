@@ -25,6 +25,7 @@ const ChatContainer = () => {
     retryPendingMessage,
     searchChat,
     selectedConversation,
+    typingUsers,
   } = useChatStore();
   const { authUser } = useAuthStore();
   const messageEndRef = useRef(null);
@@ -181,6 +182,9 @@ const ChatContainer = () => {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
+        {typingUsers.length > 0 && (
+          <p className="text-sm text-gray-400">Typing...</p>
+        )}
         {isLoadingOlderMessages && (
           <div className="text-center text-xs text-base-content/50">Loading older messages...</div>
         )}

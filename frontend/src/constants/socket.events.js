@@ -9,6 +9,8 @@ export const SOCKET_EVENTS = {
   MESSAGE_DELIVERED_ACK: "message:delivered:ack",
   MESSAGE_SYNC_REQUEST: "message:sync:request",
   MESSAGE_SYNC: "message:sync",
+  CONVERSATION_JOIN: "conversation:join",
+  CONVERSATION_LEAVE: "conversation:leave",
   TYPING_START: "typing:start",
   TYPING_STOP: "typing:stop",
 };

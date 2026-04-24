@@ -34,42 +34,40 @@ const MessageInput = () => {
   const fileInputRef = useRef(null);
   const { sendMessage, selectedConversation } = useChatStore();
   const { socket } = useAuthStore();
-  const typingStartTimeoutRef = useRef(null);
   const typingStopTimeoutRef = useRef(null);
-  const isTypingRef = useRef(false);
 
   const emitTypingStop = () => {
-    if (!socket?.connected || selectedConversation?.kind === "group") return;
-    const toUserId = selectedConversation?.participant?._id;
-    if (!toUserId) return;
-    socket.emit(SOCKET_EVENTS.TYPING_STOP, { toUserId });
-    isTypingRef.current = false;
+    const conversationId = selectedConversation?._id;
+    if (!socket?.connected || !conversationId) return;
+    socket.emit(SOCKET_EVENTS.TYPING_STOP, { conversationId });
   };
 
-  const scheduleTypingStop = () => {
+  const handleTyping = (e) => {
+    const next = sanitizePlainText(e.target.value).slice(0, MAX_MESSAGE_LENGTH);
+    setText(next);
+
+    const conversationId = selectedConversation?._id;
+    if (!socket?.connected || !conversationId) return;
+
     if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+
+    if (!next.trim()) {
+      socket.emit(SOCKET_EVENTS.TYPING_STOP, { conversationId });
+      return;
+    }
+
+    socket.emit(SOCKET_EVENTS.TYPING_START, {
+      conversationId,
+    });
     typingStopTimeoutRef.current = setTimeout(() => {
-      emitTypingStop();
-    }, 1200);
-  };
-
-  const scheduleTypingStart = () => {
-    if (!socket?.connected || selectedConversation?.kind === "group") return;
-    const toUserId = selectedConversation?.participant?._id;
-    if (!toUserId) return;
-
-    if (typingStartTimeoutRef.current) clearTimeout(typingStartTimeoutRef.current);
-    typingStartTimeoutRef.current = setTimeout(() => {
-      if (!isTypingRef.current) {
-        socket.emit(SOCKET_EVENTS.TYPING_START, { toUserId });
-        isTypingRef.current = true;
-      }
-    }, 250);
+      socket.emit(SOCKET_EVENTS.TYPING_STOP, {
+        conversationId,
+      });
+    }, 1500);
   };
 
   useEffect(() => {
     return () => {
-      if (typingStartTimeoutRef.current) clearTimeout(typingStartTimeoutRef.current);
       if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
       emitTypingStop();
     };
@@ -244,16 +242,7 @@ const MessageInput = () => {
             placeholder="Type a message..."
             value={text}
             maxLength={MAX_MESSAGE_LENGTH}
-            onChange={(e) => {
-              const next = sanitizePlainText(e.target.value).slice(0, MAX_MESSAGE_LENGTH);
-              setText(next);
-              if (next.trim().length > 0) {
-                scheduleTypingStart();
-                scheduleTypingStop();
-              } else {
-                emitTypingStop();
-              }
-            }}
+            onChange={handleTyping}
             onBlur={emitTypingStop}
           />
           <input
