@@ -857,6 +857,18 @@ export const useChatStore = create((set, get) => ({
   },
 
   setSelectedConversation: (selectedConversation) => {
+    const socket = useAuthStore.getState().socket;
+    const previousConversationId = getConversationId(get().selectedConversation);
+    const nextConversationId = getConversationId(selectedConversation);
+
+    if (socket?.connected && previousConversationId && previousConversationId !== nextConversationId) {
+      socket.emit(SOCKET_EVENTS.CONVERSATION_LEAVE, previousConversationId);
+    }
+
+    if (socket?.connected && nextConversationId && previousConversationId !== nextConversationId) {
+      socket.emit(SOCKET_EVENTS.CONVERSATION_JOIN, nextConversationId);
+    }
+
     set((state) => ({
       selectedConversation,
       typingUsers: [],

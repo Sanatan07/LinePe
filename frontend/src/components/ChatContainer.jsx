@@ -239,9 +239,9 @@ const ChatContainer = () => {
                       )}
                       {messageSenderId === currentUserId && message?.deliveryState !== "sending" && message?.deliveryState !== "failed" && (
                         <span className="text-xs opacity-70">
-                          {status === "sent" && <>&check;</>}
-                          {status === "delivered" && <>&check;&check;</>}
-                          {status === "read" && <>&check;&check; Read</>}
+                          {status === "sent" && "\u2713"}
+                          {status === "delivered" && "\u2713\u2713"}
+                          {status === "read" && "\u2713\u2713 Read"}
                         </span>
                       )}
                     </span>
