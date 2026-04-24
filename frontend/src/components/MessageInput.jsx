@@ -49,16 +49,12 @@ const MessageInput = () => {
     const conversationId = selectedConversation?._id;
     if (!socket?.connected || !conversationId) return;
 
-    if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
-
-    if (!next.trim()) {
-      socket.emit(SOCKET_EVENTS.TYPING_STOP, { conversationId });
-      return;
-    }
-
     socket.emit(SOCKET_EVENTS.TYPING_START, {
       conversationId,
     });
+
+    if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+
     typingStopTimeoutRef.current = setTimeout(() => {
       socket.emit(SOCKET_EVENTS.TYPING_STOP, {
         conversationId,
