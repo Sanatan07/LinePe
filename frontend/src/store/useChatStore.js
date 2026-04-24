@@ -69,7 +69,6 @@ const upsertConversation = (conversations, incomingConversation) => {
   });
 };
 
-const typingTimeoutsByUserId = new Map();
 const retryTimeoutsByClientMessageId = new Map();
 const createClientMessageId = () =>
   globalThis.crypto?.randomUUID?.() || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -776,36 +775,16 @@ export const useChatStore = create((set, get) => ({
 
     const handleTypingStart = (payload) => {
       const userId = getUserId(payload?.userId);
-      const conversationId = getConversationId(payload?.conversationId);
-      const selectedConversationId = getConversationId(get().selectedConversation);
-      if (!userId || !conversationId || conversationId !== selectedConversationId) return;
+      if (!userId) return;
 
       set((state) => ({
         typingUsers: [...new Set([...(Array.isArray(state.typingUsers) ? state.typingUsers : []), userId])],
       }));
-
-      const existingTimeout = typingTimeoutsByUserId.get(userId);
-      if (existingTimeout) clearTimeout(existingTimeout);
-
-      const timeoutId = setTimeout(() => {
-        typingTimeoutsByUserId.delete(userId);
-        set((state) => ({
-          typingUsers: (Array.isArray(state.typingUsers) ? state.typingUsers : []).filter((id) => id !== userId),
-        }));
-      }, 3500);
-
-      typingTimeoutsByUserId.set(userId, timeoutId);
     };
 
     const handleTypingStop = (payload) => {
       const userId = getUserId(payload?.userId);
-      const conversationId = getConversationId(payload?.conversationId);
-      const selectedConversationId = getConversationId(get().selectedConversation);
-      if (!userId || !conversationId || conversationId !== selectedConversationId) return;
-
-      const existingTimeout = typingTimeoutsByUserId.get(userId);
-      if (existingTimeout) clearTimeout(existingTimeout);
-      typingTimeoutsByUserId.delete(userId);
+      if (!userId) return;
 
       set((state) => ({
         typingUsers: (Array.isArray(state.typingUsers) ? state.typingUsers : []).filter((id) => id !== userId),
