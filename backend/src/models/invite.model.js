@@ -6,13 +6,29 @@ const inviteSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      alias: "invitedBy",
       index: true,
     },
     phoneNumber: {
       type: String,
-      required: true,
+      default: "",
+      alias: "phone",
       index: true,
       match: /^\+91\d{10}$/,
+    },
+    email: {
+      type: String,
+      default: "",
+      trim: true,
+      lowercase: true,
+      index: true,
+    },
+    username: {
+      type: String,
+      default: "",
+      trim: true,
+      lowercase: true,
+      index: true,
     },
     channelUsed: {
       type: String,
@@ -23,6 +39,7 @@ const inviteSchema = new mongoose.Schema(
     inviteCode: {
       type: String,
       required: true,
+      alias: "token",
       unique: true,
       index: true,
     },
@@ -39,13 +56,21 @@ const inviteSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    acceptedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
     expiresAt: {
       type: Date,
-      default: null,
+      required: true,
     },
   },
   { timestamps: true }
 );
+
+inviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 const Invite = mongoose.model("Invite", inviteSchema);
 

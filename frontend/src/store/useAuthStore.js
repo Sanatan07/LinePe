@@ -105,8 +105,10 @@ export const useAuthStore = create((set, get) => ({
       localStorage.setItem(SESSION_HINT_KEY, "true");
       toast.success("Logged in successfully");
       get().connectSocket();
+      return res.data;
     } catch (error) {
       toast.error(getErrorMessage(error, "Login failed"));
+      return null;
     } finally {
       set({ isLoggingIn: false });
     }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare, User } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -9,6 +9,8 @@ import { useAuthStore } from "../store/useAuthStore";
 const MIN_PASSWORD_LENGTH = 12;
 
 const SignUpPage = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
@@ -20,6 +22,7 @@ const SignUpPage = () => {
   const [pendingEmail, setPendingEmail] = useState("");
 
   const { signup, verifySignupOtp, isSigningUp } = useAuthStore();
+  const inviteCode = new URLSearchParams(location.search).get("invite");
 
   const validateForm = () => {
     if (!formData.fullName.trim()) return toast.error("Full name is required");
@@ -53,7 +56,10 @@ const SignUpPage = () => {
         return toast.error("Enter the 6 digit verification code");
       }
 
-      await verifySignupOtp({ email: pendingEmail, otp });
+      const verifiedUser = await verifySignupOtp({ email: pendingEmail, otp });
+      if (verifiedUser && inviteCode) {
+        navigate(`/invite/${encodeURIComponent(inviteCode)}`);
+      }
       return;
     }
 

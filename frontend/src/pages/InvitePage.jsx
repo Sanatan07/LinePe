@@ -1,13 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Loader, MessageSquare, UserPlus } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { axiosInstance } from "../lib/axios";
+import { useAuthStore } from "../store/useAuthStore";
+import { useChatStore } from "../store/useChatStore";
 
 const InvitePage = () => {
   const { code } = useParams();
+  const navigate = useNavigate();
+  const { authUser } = useAuthStore();
+  const { getConversations, setSelectedConversation } = useChatStore();
   const [invite, setInvite] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAccepting, setIsAccepting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -43,6 +50,27 @@ const InvitePage = () => {
   );
 
   const joinHref = `/signup?invite=${encodeURIComponent(code || "")}`;
+  const loginHref = `/login?invite=${encodeURIComponent(code || "")}`;
+
+  const handleAcceptInvite = async () => {
+    if (!authUser || !code) return;
+
+    setIsAccepting(true);
+    try {
+      const res = await axiosInstance.post(`/invites/${code}/accept`);
+      const conversation = res.data?.conversation || null;
+      await getConversations();
+      if (conversation?._id) {
+        setSelectedConversation(conversation);
+      }
+      toast.success(res.data?.message || "Invite accepted");
+      navigate("/");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to accept invite");
+    } finally {
+      setIsAccepting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -103,17 +131,31 @@ const InvitePage = () => {
             )}
 
             <div className="flex flex-col gap-3">
-              <Link
-                to={joinHref}
-                className={`btn btn-primary btn-lg ${invite && !invite.isRedeemable ? "btn-disabled" : ""}`}
-              >
-                <UserPlus className="size-5" />
-                Join LinePe
-              </Link>
+              {authUser ? (
+                <button
+                  type="button"
+                  className={`btn btn-primary btn-lg ${invite && !invite.isRedeemable ? "btn-disabled" : ""}`}
+                  onClick={handleAcceptInvite}
+                  disabled={isAccepting || (invite && !invite.isRedeemable)}
+                >
+                  <UserPlus className="size-5" />
+                  {isAccepting ? "Accepting..." : "Accept Invite"}
+                </button>
+              ) : (
+                <>
+                  <Link
+                    to={joinHref}
+                    className={`btn btn-primary btn-lg ${invite && !invite.isRedeemable ? "btn-disabled" : ""}`}
+                  >
+                    <UserPlus className="size-5" />
+                    Join LinePe
+                  </Link>
 
-              <Link to="/login" className="btn btn-ghost">
-                Already have an account? Sign in
-              </Link>
+                  <Link to={loginHref} className="btn btn-ghost">
+                    Already have an account? Sign in
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

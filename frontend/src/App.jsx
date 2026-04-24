@@ -8,13 +8,24 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 import AuditPage from "./pages/AuditPage";
 
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
 import { useEffect } from "react";
 
 import { Loader } from "lucide-react";
 import { Toaster } from "react-hot-toast";
+
+const InviteAwareAuthRedirect = ({ authUser, fallback }) => {
+  const location = useLocation();
+  const inviteCode = new URLSearchParams(location.search).get("invite");
+
+  if (authUser && inviteCode) {
+    return <Navigate to={`/invite/${encodeURIComponent(inviteCode)}`} />;
+  }
+
+  return fallback;
+};
 
 const App = () => {
   const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
@@ -49,12 +60,16 @@ const App = () => {
 
         <Route
           path="/signup"
-          element={!authUser ? <SignUpPage /> : <Navigate to="/" />}
+          element={
+            !authUser ? <SignUpPage /> : <InviteAwareAuthRedirect authUser={authUser} fallback={<Navigate to="/" />} />
+          }
         />
 
         <Route
           path="/login"
-          element={!authUser ? <LoginPage /> : <Navigate to="/" />}
+          element={
+            !authUser ? <LoginPage /> : <InviteAwareAuthRedirect authUser={authUser} fallback={<Navigate to="/" />} />
+          }
         />
 
         <Route path="/invite/:code" element={<InvitePage />} />

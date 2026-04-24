@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 import Invite from "../models/invite.model.js";
 import User from "../models/user.model.js";
+import { getOrCreateConversation } from "./conversation.controller.js";
 import { logger } from "../lib/logger.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
 
@@ -37,12 +38,18 @@ const ALLOWED_INVITE_CHANNELS = new Set(["sms", "whatsapp", "link"]);
 const formatInvite = (invite) => ({
   _id: invite._id,
   phoneNumber: invite.phoneNumber,
+  phone: invite.phoneNumber,
+  email: invite.email || "",
+  username: invite.username || "",
   inviteCode: invite.inviteCode,
+  token: invite.inviteCode,
   inviteUrl: buildInviteUrl(invite.inviteCode),
+  inviteLink: buildInviteUrl(invite.inviteCode),
   status: invite.status,
   expiresAt: invite.expiresAt,
   sentAt: invite.sentAt,
   acceptedAt: invite.acceptedAt,
+  acceptedBy: invite.acceptedBy || null,
   channelUsed: invite.channelUsed || "link",
   inviter: invite.inviterId
     ? {
@@ -58,6 +65,8 @@ export const sendInvite = async (req, res) => {
   try {
     const inviterId = req.user?._id;
     const normalizedPhoneNumber = normalizeIndianPhoneNumber(req.body?.phoneNumber);
+    const normalizedEmail = sanitizePlainText(req.body?.email, { maxLength: 254 }).toLowerCase();
+    const normalizedUsername = sanitizePlainText(req.body?.username, { maxLength: 30 }).toLowerCase();
     const requestedChannel = sanitizePlainText(req.body?.channelUsed, { maxLength: 20 }).toLowerCase();
     const channelUsed = ALLOWED_INVITE_CHANNELS.has(requestedChannel) ? requestedChannel : "link";
 
@@ -65,13 +74,16 @@ export const sendInvite = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    if (!normalizedPhoneNumber) {
-      return res.status(400).json({ message: "Phone number must be a valid +91 mobile number" });
+    if (!normalizedPhoneNumber && !normalizedEmail && !normalizedUsername) {
+      return res.status(400).json({ message: "Phone, email, or username is required" });
     }
 
     const existingUser = await User.findOne({
-      phoneNumber: normalizedPhoneNumber,
-      isPhoneVerified: true,
+      $or: [
+        normalizedPhoneNumber ? { phoneNumber: normalizedPhoneNumber } : null,
+        normalizedUsername ? { username: normalizedUsername } : null,
+        normalizedEmail ? { email: normalizedEmail } : null,
+      ].filter(Boolean),
     }).select("_id fullName username profilePic lastSeen");
 
     if (existingUser) {
@@ -94,7 +106,11 @@ export const sendInvite = async (req, res) => {
     const [recentInvitesToNumber, recentInvitesByUser] = await Promise.all([
       Invite.countDocuments({
         inviterId,
-        phoneNumber: normalizedPhoneNumber,
+        $or: [
+          normalizedPhoneNumber ? { phoneNumber: normalizedPhoneNumber } : null,
+          normalizedUsername ? { username: normalizedUsername } : null,
+          normalizedEmail ? { email: normalizedEmail } : null,
+        ].filter(Boolean),
         createdAt: { $gte: last24Hours },
       }),
       Invite.countDocuments({
@@ -118,6 +134,8 @@ export const sendInvite = async (req, res) => {
     const existingInvite = await Invite.findOne({
       inviterId,
       phoneNumber: normalizedPhoneNumber,
+      email: normalizedEmail,
+      username: normalizedUsername,
       status: { $in: ["pending", "sent"] },
       $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
     });
@@ -132,7 +150,7 @@ export const sendInvite = async (req, res) => {
 
       logger.info("invite.sent", {
         inviterId: String(inviterId),
-        inviteTarget: normalizedPhoneNumber,
+        inviteTarget: normalizedPhoneNumber || normalizedUsername || normalizedEmail,
         sentAt: existingInvite.sentAt?.toISOString?.() || now.toISOString(),
         acceptedAt: existingInvite.acceptedAt?.toISOString?.() || null,
         channelUsed,
@@ -152,6 +170,8 @@ export const sendInvite = async (req, res) => {
     const invite = await Invite.create({
       inviterId,
       phoneNumber: normalizedPhoneNumber,
+      email: normalizedEmail,
+      username: normalizedUsername,
       channelUsed,
       inviteCode: generateInviteCode(),
       status: "sent",
@@ -161,7 +181,7 @@ export const sendInvite = async (req, res) => {
 
     logger.info("invite.sent", {
       inviterId: String(inviterId),
-      inviteTarget: normalizedPhoneNumber,
+      inviteTarget: normalizedPhoneNumber || normalizedUsername || normalizedEmail,
       sentAt: now.toISOString(),
       acceptedAt: null,
       channelUsed,
@@ -213,16 +233,21 @@ export const redeemInvite = async (req, res) => {
     }
 
     if (invite.status === "accepted") {
+      const conversation = await getOrCreateConversation([invite.inviterId, currentUserId]);
       return res.status(200).json({
         success: true,
         message: "Invite already redeemed",
         invite: formatInvite(invite),
+        conversation,
       });
     }
 
     invite.status = "accepted";
     invite.acceptedAt = new Date();
+    invite.acceptedBy = currentUserId;
     await invite.save();
+
+    const conversation = await getOrCreateConversation([invite.inviterId, currentUserId]);
 
     logger.info("invite.accepted", {
       inviterId: String(invite.inviterId),
@@ -238,6 +263,7 @@ export const redeemInvite = async (req, res) => {
       success: true,
       message: "Invite redeemed successfully",
       invite: formatInvite(invite),
+      conversation,
     });
   } catch (error) {
     console.log("Error in redeemInvite controller:", error.message);
@@ -280,4 +306,12 @@ export const getInviteDetails = async (req, res) => {
     console.log("Error in getInviteDetails controller:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
+};
+
+export const acceptInvite = async (req, res) => {
+  req.body = {
+    ...(req.body || {}),
+    inviteCode: sanitizePlainText(req.params.token, { maxLength: 100 }),
+  };
+  return redeemInvite(req, res);
 };

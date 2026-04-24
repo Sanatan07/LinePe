@@ -440,13 +440,18 @@ export const useChatStore = create((set, get) => ({
   sendInvite: async (phoneNumber) => {
     const trimmed = typeof phoneNumber === "string" ? phoneNumber.trim() : "";
     if (!trimmed) {
-      toast.error("Phone number is required");
+      toast.error("Invite target is required");
       return null;
     }
 
     set({ isSendingInvite: true });
     try {
-      const res = await axiosInstance.post("/invites", { phoneNumber: trimmed });
+      const payload = trimmed.includes("@")
+        ? { email: trimmed }
+        : /^\+?\d[\d\s()-]*$/.test(trimmed)
+          ? { phoneNumber: trimmed }
+          : { username: trimmed };
+      const res = await axiosInstance.post("/invites", payload);
       return res.data || null;
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to send invite");
