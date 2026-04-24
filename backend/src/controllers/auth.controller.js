@@ -4,6 +4,7 @@ import crypto from "crypto";
 
 import cloudinary from "../lib/cloudinary.js";
 import {
+  hashToken,
   clearAuthCookies,
   generateAuthTokens,
   setAuthCookies,
@@ -108,6 +109,8 @@ const addRefreshSession = async (user, tokens, req) => {
     userAgent: getUserAgent(req),
   });
 
+  user.refreshTokenHash = tokens.refreshTokenHash;
+  user.refreshTokenExpiresAt = tokens.refreshExpiresAt;
   // Keep the most recent sessions only.
   user.refreshSessions = cleaned.slice(-20);
   await user.save();
@@ -640,6 +643,8 @@ export const refreshTokenController = async (req, res, next) => {
       ip: getRequestIp(req),
       userAgent: getUserAgent(req),
     });
+    user.refreshTokenHash = tokens.refreshTokenHash;
+    user.refreshTokenExpiresAt = tokens.refreshExpiresAt;
     user.refreshSessions = user.refreshSessions.slice(-20);
     await user.save();
     await syncRegisteredUser(user);
@@ -715,6 +720,8 @@ export const getSessions = async (req, res, next) => {
     next(error);
   }
 };
+
+export const refreshAccessToken = (req, res, next) => refreshTokenController(req, res, next);
 
 export const logoutDevice = async (req, res, next) => {
   try {

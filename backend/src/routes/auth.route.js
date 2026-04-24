@@ -23,6 +23,7 @@ router.post("/logout", logout);
 router.post("/logout-all", protectRoute, logoutAll);
 router.get("/sessions", protectRoute, refreshLimiter, getSessions);
 router.post("/logout-device", protectRoute, refreshLimiter, logoutDevice);
+router.post("/refresh", refreshLimiter, refreshTokenController);
 router.post("/refresh-token", refreshLimiter, refreshTokenController);
 
 router.get("/check", protectRoute, checkAuth);

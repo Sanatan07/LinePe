@@ -25,19 +25,25 @@ const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const sha256 = (value) => crypto.createHash("sha256").update(value).digest("hex");
 
-export const generateAuthTokens = ({ userId, tokenVersion }) => {
-  const accessToken = jwt.sign({ userId, tokenVersion }, getJwtSecret(), {
+export const generateAccessToken = (userId, tokenVersion = 0) =>
+  jwt.sign({ userId, tokenVersion }, getJwtSecret(), {
     expiresIn: ACCESS_TOKEN_TTL_SECONDS,
   });
 
-  const tokenId = crypto.randomUUID();
-  const refreshToken = jwt.sign(
+export const generateRefreshToken = ({ userId, tokenVersion = 0, tokenId = crypto.randomUUID() }) =>
+  jwt.sign(
     { userId, tokenVersion, tokenId },
     getJwtRefreshSecret(),
     { expiresIn: REFRESH_TOKEN_TTL_SECONDS }
   );
 
-  const refreshTokenHash = sha256(refreshToken);
+export const hashToken = (token) => sha256(token);
+
+export const generateAuthTokens = ({ userId, tokenVersion }) => {
+  const tokenId = crypto.randomUUID();
+  const accessToken = generateAccessToken(userId, tokenVersion);
+  const refreshToken = generateRefreshToken({ userId, tokenVersion, tokenId });
+  const refreshTokenHash = hashToken(refreshToken);
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000);
 
   return {
@@ -59,6 +65,16 @@ export const setAuthCookies = (res, { accessToken, refreshToken }) => {
     ...baseCookieOptions,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
+};
+
+export const accessCookieOptions = {
+  ...baseCookieOptions,
+  maxAge: 15 * 60 * 1000,
+};
+
+export const refreshCookieOptions = {
+  ...baseCookieOptions,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
 export const clearAuthCookies = (res) => {
