@@ -1,5 +1,35 @@
 import mongoose from "mongoose";
 
+const messageDeliverySchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    deliveredAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+const messageReadSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    readAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
 const messageSchema = new mongoose.Schema(
   {
     senderId: {
@@ -43,6 +73,14 @@ const messageSchema = new mongoose.Schema(
       type: String,
       enum: ["sent", "delivered", "read"],
       default: "sent",
+    },
+    deliveredTo: {
+      type: [messageDeliverySchema],
+      default: [],
+    },
+    readBy: {
+      type: [messageReadSchema],
+      default: [],
     },
   },
   { timestamps: true }

@@ -143,38 +143,86 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED_ACK, async (payload = {}) => {
+  socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED, async (payload = {}) => {
     try {
       const messageId = String(payload?.messageId || "");
-      if (!messageId) return;
+      const conversationId = String(payload?.conversationId || "");
+      if (!messageId || !conversationId) return;
 
-      const message = await Message.findOneAndUpdate(
-        {
-          _id: messageId,
-          receiverId: userId,
-          status: "sent",
-        },
-        { $set: { status: "delivered" } },
-        { new: true }
-      );
+      const message = await Message.findById(messageId);
 
       if (!message) return;
 
-      emitMessageEvent(message.senderId, SOCKET_EVENTS.MESSAGE_DELIVERED, {
-        messageId: message._id,
-        senderId: message.senderId,
-        receiverId: message.receiverId,
-        deliveredAt: new Date().toISOString(),
-      });
+      const alreadyDelivered = Array.isArray(message.deliveredTo)
+        ? message.deliveredTo.some((entry) => String(entry?.user) === String(userId))
+        : false;
 
-      emitMessageEvent(message.receiverId, SOCKET_EVENTS.MESSAGE_DELIVERED, {
-        messageId: message._id,
-        senderId: message.senderId,
-        receiverId: message.receiverId,
-        deliveredAt: new Date().toISOString(),
+      if (!alreadyDelivered) {
+        message.deliveredTo.push({
+          user: userId,
+          deliveredAt: new Date(),
+        });
+
+        message.status = "delivered";
+        await message.save();
+      }
+
+      io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
+        messageId,
+        status: message.status,
+        deliveredTo: message.deliveredTo,
       });
     } catch (error) {
-      logger.error("socket.message_delivered_ack.failed", { error, socketId: socket.id, userId });
+      logger.error("socket.message_delivered.failed", { error, socketId: socket.id, userId });
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.MESSAGE_READ, async (payload = {}) => {
+    try {
+      const conversationId = String(payload?.conversationId || "");
+      if (!conversationId) return;
+
+      const messages = await Message.find({
+        conversationId,
+        senderId: { $ne: userId },
+        "readBy.user": { $ne: userId },
+      }).select("_id");
+
+      if (messages.length === 0) {
+        io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
+          conversationId,
+          readBy: userId,
+          messageIds: [],
+        });
+        return;
+      }
+
+      await Message.updateMany(
+        {
+          conversationId,
+          senderId: { $ne: userId },
+          "readBy.user": { $ne: userId },
+        },
+        {
+          $push: {
+            readBy: {
+              user: userId,
+              readAt: new Date(),
+            },
+          },
+          $set: {
+            status: "read",
+          },
+        }
+      );
+
+      io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
+        conversationId,
+        readBy: userId,
+        messageIds: messages.map((msg) => msg._id),
+      });
+    } catch (error) {
+      logger.error("socket.message_read.failed", { error, socketId: socket.id, userId });
     }
   });
 

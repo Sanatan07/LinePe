@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 import cloudinary from "../lib/cloudinary.js";
-import { emitMessageEvent } from "../lib/socket.js";
+import { emitMessageEvent, io } from "../lib/socket.js";
 import { SOCKET_EVENTS } from "../constants/socket.events.js";
 import { getOrCreateConversation } from "./conversation.controller.js";
 import Message from "../models/message.model.js";
@@ -121,6 +121,7 @@ const buildMessagePayload = async ({
     image: imageUrl,
     attachments: nextAttachments.length > 0 ? nextAttachments : undefined,
     clientMessageId: clientMessageId || null,
+    status: "sent",
   };
 };
 
@@ -155,6 +156,7 @@ const createOrReuseMessage = async ({ payload, conversation, senderId, emitTarge
   conversation.lastActivityAt = populatedMessage.createdAt;
   await conversation.save();
 
+  io.to(String(conversation._id)).emit(SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
   emitMessageEvent(emitTargets, emitEventName, populatedMessage);
 
   return { message: populatedMessage, duplicate: false };
@@ -354,6 +356,7 @@ export const sendMessage = async (req, res) => {
       text: normalizedText,
       image: imageUrl,
       attachments: nextAttachments.length > 0 ? nextAttachments : undefined,
+      status: "sent",
     });
 
     const populatedMessage = await Message.findById(newMessage._id)
@@ -369,6 +372,7 @@ export const sendMessage = async (req, res) => {
     conversation.lastActivityAt = populatedMessage.createdAt;
     await conversation.save();
 
+    io.to(String(conversation._id)).emit(SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
     emitMessageEvent(senderId, SOCKET_EVENTS.MESSAGE_SENT, populatedMessage);
     emitMessageEvent(receiverId, SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
 

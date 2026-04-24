@@ -534,6 +534,13 @@ export const useChatStore = create((set, get) => ({
       const targetConversationId = getConversationId(conversation);
       if (!targetConversationId) return;
 
+      const socket = useAuthStore.getState().socket;
+      if (socket) {
+        socket.emit(SOCKET_EVENTS.MESSAGE_READ, {
+          conversationId: targetConversationId,
+        });
+      }
+
       const res = await axiosInstance.post(`/messages/conversation/read/${targetConversationId}`);
       const updatedConversationId = String(res.data?.conversationId || "");
       if (!updatedConversationId) return;
@@ -689,8 +696,11 @@ export const useChatStore = create((set, get) => ({
       const isSelectedConversation =
         Boolean(selectedConversationId) && incomingConversationId === selectedConversationId;
 
-      if (isIncomingToMe && incomingMessage?.status === "sent") {
-        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED_ACK, { messageId: incomingMessage?._id });
+      if (isIncomingToMe && incomingMessage?._id && incomingConversationId) {
+        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
+          messageId: incomingMessage._id,
+          conversationId: incomingConversationId,
+        });
       }
 
       const existing = get().conversations.find(
@@ -725,7 +735,12 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: state.messages.map((message) =>
           getMessageId(message) === String(receipt.messageId)
-            ? { ...message, status: "delivered", deliveryState: "sent" }
+            ? {
+                ...message,
+                status: receipt.status || "delivered",
+                deliveredTo: Array.isArray(receipt.deliveredTo) ? receipt.deliveredTo : message.deliveredTo,
+                deliveryState: "sent",
+              }
             : message
         ),
       }));
@@ -733,24 +748,28 @@ export const useChatStore = create((set, get) => ({
 
     const handleReadMessage = (payload) => {
       const conversationId = String(payload?.conversationId || "");
-      const readerId = getUserId(payload?.readerId);
+      const readerId = getUserId(payload?.readBy || payload?.readerId);
+      const messageIds = Array.isArray(payload?.messageIds) ? payload.messageIds.map((id) => String(id)) : null;
       if (!conversationId) return;
-
-      const authUserId = getUserId(useAuthStore.getState().authUser);
 
       set((state) => ({
         messages: state.messages.map((message) => {
           if (String(message?.conversationId || "") !== conversationId) return message;
-
-          const senderId = getUserId(message.senderId);
-          const receiverId = getUserId(message.receiverId);
-
-          const isReceiverTab = authUserId === readerId && receiverId === authUserId;
-          const isSenderTab = authUserId !== readerId && senderId === authUserId && receiverId === readerId;
-
-          if (!isReceiverTab && !isSenderTab) return message;
+          if (messageIds && messageIds.length > 0 && !messageIds.includes(getMessageId(message))) return message;
           if (message.status === "read") return message;
-          return { ...message, status: "read" };
+          return {
+            ...message,
+            status: "read",
+            readBy: Array.isArray(message.readBy)
+              ? message.readBy.some((entry) => getUserId(entry?.user) === readerId)
+                ? message.readBy
+                : [...message.readBy, { user: readerId, readAt: new Date().toISOString() }]
+              : [{ user: readerId, readAt: new Date().toISOString() }],
+          };
+        }),
+        conversations: upsertConversation(state.conversations, {
+          _id: conversationId,
+          unreadCount: 0,
         }),
       }));
     };
@@ -801,15 +820,15 @@ export const useChatStore = create((set, get) => ({
 
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
-    socket.off(SOCKET_EVENTS.MESSAGE_DELIVERED);
-    socket.off(SOCKET_EVENTS.MESSAGE_READ);
+    socket.off(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE);
+    socket.off(SOCKET_EVENTS.MESSAGE_READ_UPDATE);
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
 
     socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleIncomingMessage);
     socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleIncomingMessage);
-    socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED, handleDeliveredMessage);
-    socket.on(SOCKET_EVENTS.MESSAGE_READ, handleReadMessage);
+    socket.on(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, handleDeliveredMessage);
+    socket.on(SOCKET_EVENTS.MESSAGE_READ_UPDATE, handleReadMessage);
     socket.on(SOCKET_EVENTS.TYPING_START, handleTypingStart);
     socket.on(SOCKET_EVENTS.TYPING_STOP, handleTypingStop);
     socket.on(SOCKET_EVENTS.MESSAGE_SYNC, () => {
@@ -836,8 +855,8 @@ export const useChatStore = create((set, get) => ({
 
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
-    socket.off(SOCKET_EVENTS.MESSAGE_DELIVERED);
-    socket.off(SOCKET_EVENTS.MESSAGE_READ);
+    socket.off(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE);
+    socket.off(SOCKET_EVENTS.MESSAGE_READ_UPDATE);
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
     socket.off(SOCKET_EVENTS.MESSAGE_SYNC);

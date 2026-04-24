@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckCheck } from "lucide-react";
 
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
@@ -234,11 +233,13 @@ const ChatContainer = () => {
                           Retry
                         </button>
                       )}
-                      {status === "sent" && <Check className="size-4 text-base-content/50" />}
-                      {status === "delivered" && (
-                        <CheckCheck className="size-4 text-base-content/50" />
+                      {messageSenderId === currentUserId && message?.deliveryState !== "sending" && message?.deliveryState !== "failed" && (
+                        <span className="text-xs opacity-70">
+                          {status === "sent" && <>&check;</>}
+                          {status === "delivered" && <>&check;&check;</>}
+                          {status === "read" && <>&check;&check; Read</>}
+                        </span>
                       )}
-                      {status === "read" && <CheckCheck className="size-4 text-primary" />}
                     </span>
                   )}
                 </div>
