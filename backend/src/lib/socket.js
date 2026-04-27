@@ -170,6 +170,7 @@ io.on("connection", (socket) => {
       }).select("_id kind");
 
       if (!conversation) return;
+      if (message.receiverId && String(message.receiverId) !== String(userId)) return;
 
       const alreadyDelivered = Array.isArray(message.deliveredTo)
         ? message.deliveredTo.some((entry) => String(entry?.user) === String(userId))
@@ -221,11 +222,19 @@ io.on("connection", (socket) => {
       }
 
       const isDirect = conversation.kind === "direct";
-      const messages = await Message.find({
+      const unreadQuery = {
         conversationId,
         senderId: { $ne: userId },
         "readBy.user": { $ne: userId },
-        ...(isDirect ? { receiverId: userId, status: { $in: ["sent", "delivered"] } } : {}),
+      };
+
+      if (isDirect) {
+        unreadQuery.receiverId = userId;
+        unreadQuery.status = { $in: ["sent", "delivered"] };
+      }
+
+      const messages = await Message.find({
+        ...unreadQuery,
       }).select("_id");
       const messageIds = messages.map((msg) => msg._id);
 

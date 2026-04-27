@@ -79,6 +79,18 @@ const getSendErrorMessage = (error) =>
     ? "Your session expired. Sign in again to retry."
     : error?.message || "Failed to send message");
 
+const shouldConfirmDelivery = (message, authUserId) => {
+  const messageId = getMessageId(message);
+  if (!messageId || messageId.startsWith("temp:")) return false;
+  if (getUserId(message?.senderId) === authUserId) return false;
+  if (message?.status === "read") return false;
+
+  const deliveredTo = Array.isArray(message?.deliveredTo) ? message.deliveredTo : [];
+  if (deliveredTo.some((entry) => getUserId(entry?.user) === authUserId)) return false;
+
+  return message?.status === "sent" || message?.status === "delivered";
+};
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   conversations: [],
@@ -229,6 +241,22 @@ export const useChatStore = create((set, get) => ({
           : message
       ),
     }));
+  },
+
+  confirmMessagesDelivered: (messagesToConfirm) => {
+    const socket = useAuthStore.getState().socket;
+    const authUserId = getUserId(useAuthStore.getState().authUser);
+    if (!socket?.connected || !authUserId || !Array.isArray(messagesToConfirm)) return;
+
+    messagesToConfirm.forEach((message) => {
+      const conversationId = getConversationId(message?.conversationId);
+      if (!conversationId || !shouldConfirmDelivery(message, authUserId)) return;
+
+      socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
+        messageId: getMessageId(message),
+        conversationId,
+      });
+    });
   },
 
   getUsers: async () => {
@@ -509,14 +537,17 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get(`/messages/conversation/${conversationId}`, {
         params: { limit: 30 },
       });
+      const nextMessages = (res.data.messages || []).map((message) => ({
+        ...message,
+        status: message.status || "sent",
+      }));
+
       set({
-        messages: (res.data.messages || []).map((message) => ({
-          ...message,
-          status: message.status || "sent",
-        })),
+        messages: nextMessages,
         messagesCursor: res.data.nextBefore || null,
         messagesHasMore: Boolean(res.data.hasMore),
       });
+      get().confirmMessagesDelivered(nextMessages);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -690,6 +721,7 @@ export const useChatStore = create((set, get) => ({
         messagesCursor: res.data.nextBefore || state.messagesCursor,
         messagesHasMore: Boolean(res.data.hasMore),
       }));
+      get().confirmMessagesDelivered(olderMessages);
 
       return olderMessages.length;
     } catch {
@@ -845,10 +877,7 @@ export const useChatStore = create((set, get) => ({
       }
 
       if (isIncomingToMe && incomingMessage?._id && incomingConversationId) {
-        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
-          messageId: incomingMessage._id,
-          conversationId: incomingConversationId,
-        });
+        get().confirmMessagesDelivered([incomingMessage]);
       }
     };
 

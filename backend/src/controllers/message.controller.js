@@ -507,7 +507,14 @@ export const markMessagesAsRead = async (req, res) => {
       return res.status(400).json({ message: "You cannot mark your own chat as read" });
     }
 
-    const conversation = await getOrCreateConversation([readerId, otherUserId]);
+    const participantKey = [String(readerId), String(otherUserId)].sort().join(":");
+    const conversation = await Conversation.findOne({
+      participantKey,
+      kind: "direct",
+      participants: readerId,
+    });
+
+    if (!conversation) return res.status(404).json({ message: "Conversation not found" });
 
     const readAt = new Date();
     const unreadMessages = await Message.find({
