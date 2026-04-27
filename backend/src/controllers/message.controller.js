@@ -370,9 +370,14 @@ export const sendMessage = async (req, res) => {
     await conversation.save();
 
     res.status(201).json(populatedMessage);
+    emitMessageEvent(senderId, SOCKET_EVENTS.MESSAGE_SENT, populatedMessage);
     emitMessageEvent(receiverId, SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
+    emitMessageEvent(req.user?._id, SOCKET_EVENTS.MESSAGE_ERROR, {
+      clientMessageId: req.body?.clientMessageId || null,
+      message: "Failed to send message",
+    });
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -465,6 +470,7 @@ export const sendMessageToConversation = async (req, res) => {
     incrementMetric("messageSendSuccess");
 
     res.status(201).json(message);
+    emitMessageEvent(senderId, SOCKET_EVENTS.MESSAGE_SENT, message);
     emitMessageEvent(
       participantIds.filter((participantId) => participantId !== String(senderId)),
       SOCKET_EVENTS.MESSAGE_NEW,
@@ -479,6 +485,11 @@ export const sendMessageToConversation = async (req, res) => {
       userId: String(req.user?._id || ""),
     });
     const statusCode = error.statusCode || 500;
+    emitMessageEvent(req.user?._id, SOCKET_EVENTS.MESSAGE_ERROR, {
+      clientMessageId: req.body?.clientMessageId || null,
+      conversationId: req.params.id,
+      message: statusCode >= 500 ? "Internal server error" : error.message,
+    });
     res.status(statusCode).json({ error: statusCode >= 500 ? "Internal server error" : error.message, message: error.message });
   }
 };
@@ -519,8 +530,9 @@ export const markMessagesAsRead = async (req, res) => {
     conversation.lastReadAt?.set(String(readerId), readAt);
     await conversation.save();
 
-    emitMessageEvent(otherUserId, SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
+    emitMessageEvent(otherUserId, SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
       conversationId: conversation._id,
+      status: "read",
       readBy: readerId,
       readerId,
       messageIds,
@@ -586,8 +598,9 @@ export const markConversationAsRead = async (req, res) => {
     conversation.lastReadAt?.set(String(readerId), readAt);
     await conversation.save();
 
-    emitMessageEvent(participantIds.filter((participantId) => participantId !== String(readerId)), SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
+    emitMessageEvent(participantIds.filter((participantId) => participantId !== String(readerId)), SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
       conversationId: conversation._id,
+      status: "read",
       readBy: readerId,
       readerId,
       messageIds,

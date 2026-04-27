@@ -202,72 +202,102 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on(SOCKET_EVENTS.MESSAGE_READ, async (payload = {}) => {
+  const handleConversationRead = async (payload = {}) => {
     try {
       const conversationId = String(payload?.conversationId || "");
       if (!conversationId) return;
 
+      const conversation = await Conversation.findOne({
+        _id: conversationId,
+        participants: userId,
+      }).select("_id kind participants unreadCounts lastReadAt");
+
+      if (!conversation) {
+        socket.emit(SOCKET_EVENTS.MESSAGE_ERROR, {
+          conversationId,
+          message: "Conversation not found",
+        });
+        return;
+      }
+
+      const isDirect = conversation.kind === "direct";
       const messages = await Message.find({
         conversationId,
         senderId: { $ne: userId },
-        status: { $in: ["sent", "delivered"] },
         "readBy.user": { $ne: userId },
+        ...(isDirect ? { receiverId: userId, status: { $in: ["sent", "delivered"] } } : {}),
       }).select("_id");
+      const messageIds = messages.map((msg) => msg._id);
 
       if (messages.length === 0) {
-        io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
+        emitMessageEvent(
+          (conversation.participants || []).map(String).filter((participantId) => participantId !== String(userId)),
+          SOCKET_EVENTS.MESSAGE_STATUS_UPDATE,
+          {
+            conversationId,
+            status: "read",
+            readBy: userId,
+            readerId: userId,
+            messageIds: [],
+          }
+        );
+        conversation.unreadCounts?.set(String(userId), 0);
+        conversation.lastReadAt?.set(String(userId), new Date());
+        await conversation.save();
+        socket.emit(SOCKET_EVENTS.CONVERSATION_READ, {
           conversationId,
-          readBy: userId,
-          messageIds: [],
+          unreadCount: 0,
+          updatedCount: 0,
         });
         return;
       }
 
       const readAt = new Date();
+      const update = isDirect
+        ? {
+            $set: { status: "read", readAt },
+            $push: { readBy: { user: userId, readAt } },
+          }
+        : {
+            $push: { readBy: { user: userId, readAt } },
+          };
 
-      await Message.updateMany(
+      await Message.updateMany({ _id: { $in: messageIds } }, update);
+
+      conversation.unreadCounts?.set(String(userId), 0);
+      conversation.lastReadAt?.set(String(userId), readAt);
+      await conversation.save();
+
+      emitMessageEvent(
+        (conversation.participants || []).map(String).filter((participantId) => participantId !== String(userId)),
+        SOCKET_EVENTS.MESSAGE_STATUS_UPDATE,
         {
           conversationId,
-          senderId: { $ne: userId },
-          status: { $in: ["sent", "delivered"] },
-          "readBy.user": { $ne: userId },
-        },
-        {
-          $push: {
-            readBy: {
-              user: userId,
-              readAt,
-            },
-          },
-          $set: {
-            status: "read",
-          },
+          status: "read",
+          readBy: userId,
+          readerId: userId,
+          messageIds,
+          readAt: readAt.toISOString(),
         }
       );
-
-      await Message.updateMany(
-        {
-          conversationId,
-          senderId: { $ne: userId },
-          receiverId: userId,
-        },
-        {
-          $set: {
-            readAt,
-          },
-        }
-      );
-
-      io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
+      socket.emit(SOCKET_EVENTS.CONVERSATION_READ, {
         conversationId,
-        readBy: userId,
-        messageIds: messages.map((msg) => msg._id),
+        unreadCount: 0,
+        updatedCount: messageIds.length,
+        messageIds,
         readAt: readAt.toISOString(),
       });
     } catch (error) {
       logger.error("socket.message_read.failed", { error, socketId: socket.id, userId });
+      socket.emit(SOCKET_EVENTS.MESSAGE_ERROR, {
+        conversationId: payload?.conversationId || null,
+        message: "Failed to mark conversation read",
+      });
     }
-  });
+  };
+
+  socket.on(SOCKET_EVENTS.CONVERSATION_READ, handleConversationRead);
+  socket.on(SOCKET_EVENTS.MESSAGE_READ, handleConversationRead);
 
   socket.on(SOCKET_EVENTS.MESSAGE_SYNC_REQUEST, async () => {
     try {

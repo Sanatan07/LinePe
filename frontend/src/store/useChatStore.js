@@ -758,16 +758,53 @@ export const useChatStore = create((set, get) => ({
       }
     };
 
-    const handleDeliveredMessage = (receipt) => {
+    const handleStatusUpdate = (receipt) => {
+      const messageIds = Array.isArray(receipt?.messageIds) ? receipt.messageIds.map((id) => String(id)) : null;
+      const status = receipt?.status || "delivered";
+      const readerId = getUserId(receipt?.readBy || receipt?.readerId);
+      const readAt = receipt?.readAt || new Date().toISOString();
+
+      set((state) => ({
+        messages: state.messages.map((message) => {
+          const matchesSingleMessage = receipt?.messageId && getMessageId(message) === String(receipt.messageId);
+          const matchesBatch = messageIds && messageIds.includes(getMessageId(message));
+
+          if (!matchesSingleMessage && !matchesBatch) return message;
+
+          if (status === "read") {
+            return {
+              ...message,
+              status: "read",
+              readAt,
+              readBy: Array.isArray(message.readBy)
+                ? message.readBy.some((entry) => getUserId(entry?.user) === readerId)
+                  ? message.readBy
+                  : [...message.readBy, { user: readerId, readAt }]
+                : [{ user: readerId, readAt }],
+            };
+          }
+
+          return {
+            ...message,
+            status,
+            deliveredAt: receipt.deliveredAt || message.deliveredAt,
+            deliveredTo: Array.isArray(receipt.deliveredTo) ? receipt.deliveredTo : message.deliveredTo,
+          };
+        }),
+      }));
+    };
+
+    const handleMessageError = (payload = {}) => {
+      const clientMessageId = getClientMessageId(payload);
+      if (!clientMessageId) {
+        toast.error(payload?.message || "Message failed");
+        return;
+      }
+
       set((state) => ({
         messages: state.messages.map((message) =>
-          getMessageId(message) === String(receipt.messageId)
-            ? {
-                ...message,
-                status: receipt.status || "delivered",
-                deliveredAt: receipt.deliveredAt || message.deliveredAt,
-                deliveredTo: Array.isArray(receipt.deliveredTo) ? receipt.deliveredTo : message.deliveredTo,
-              }
+          getClientMessageId(message) === clientMessageId
+            ? { ...message, status: "failed", errorMessage: payload?.message || "Message failed" }
             : message
         ),
       }));
@@ -826,13 +863,15 @@ export const useChatStore = create((set, get) => ({
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
     socket.off(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE);
+    socket.off(SOCKET_EVENTS.MESSAGE_ERROR);
     socket.off(SOCKET_EVENTS.MESSAGE_READ_UPDATE);
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
 
     socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleIncomingMessage);
     socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleIncomingMessage);
-    socket.on(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, handleDeliveredMessage);
+    socket.on(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, handleStatusUpdate);
+    socket.on(SOCKET_EVENTS.MESSAGE_ERROR, handleMessageError);
     socket.on(SOCKET_EVENTS.MESSAGE_READ_UPDATE, handleReadMessage);
     socket.on(SOCKET_EVENTS.TYPING_START, handleTypingStart);
     socket.on(SOCKET_EVENTS.TYPING_STOP, handleTypingStop);
@@ -864,6 +903,7 @@ export const useChatStore = create((set, get) => ({
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
     socket.off(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE);
+    socket.off(SOCKET_EVENTS.MESSAGE_ERROR);
     socket.off(SOCKET_EVENTS.MESSAGE_READ_UPDATE);
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
