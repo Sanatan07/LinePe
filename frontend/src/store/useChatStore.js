@@ -69,9 +69,15 @@ const upsertConversation = (conversations, incomingConversation) => {
   });
 };
 
-const retryTimeoutsByClientMessageId = new Map();
 const createClientMessageId = () =>
   globalThis.crypto?.randomUUID?.() || `msg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+
+const getSendErrorMessage = (error) =>
+  error?.response?.data?.message ||
+  error?.response?.data?.error ||
+  (error?.response?.status === 401
+    ? "Your session expired. Sign in again to retry."
+    : error?.message || "Failed to send message");
 
 export const useChatStore = create((set, get) => ({
   messages: [],
@@ -644,12 +650,6 @@ export const useChatStore = create((set, get) => ({
         headers: { "x-idempotency-key": clientMessageId },
       });
 
-      const timeoutId = retryTimeoutsByClientMessageId.get(clientMessageId);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        retryTimeoutsByClientMessageId.delete(clientMessageId);
-      }
-
       set((state) => ({
         messages: upsertMessage(state.messages, {
           ...res.data,
@@ -667,10 +667,12 @@ export const useChatStore = create((set, get) => ({
       }));
       return res.data;
     } catch (error) {
+      const errorMessage = getSendErrorMessage(error);
+
       set((state) => ({
         messages: state.messages.map((message) =>
           getClientMessageId(message) === clientMessageId
-            ? { ...message, status: "failed" }
+            ? { ...message, status: "failed", errorMessage }
             : message
         ),
         pendingMessages: {
@@ -680,19 +682,13 @@ export const useChatStore = create((set, get) => ({
             clientMessageId,
             conversationId,
             payload: { ...messageData, clientMessageId },
+            errorMessage,
             attempts: Number(state.pendingMessages?.[clientMessageId]?.attempts || 0) + 1,
           },
         },
       }));
 
-      const attempts = Number(get().pendingMessages?.[clientMessageId]?.attempts || 1);
-      const delayMs = Math.min(1000 * 2 ** attempts, 10000);
-      const timeoutId = setTimeout(() => {
-        get().retryPendingMessage(clientMessageId);
-      }, delayMs);
-      retryTimeoutsByClientMessageId.set(clientMessageId, timeoutId);
-
-      toast.error(error.response?.data?.message || "Failed to send message");
+      toast.error(errorMessage);
       throw error;
     }
   },
@@ -704,7 +700,7 @@ export const useChatStore = create((set, get) => ({
     set((state) => ({
       messages: state.messages.map((message) =>
         getClientMessageId(message) === clientMessageId
-          ? { ...message, status: "pending" }
+          ? { ...message, status: "pending", errorMessage: "" }
           : message
       ),
     }));
@@ -851,7 +847,10 @@ export const useChatStore = create((set, get) => ({
         get().getMessages(get().selectedConversation);
       }
       Object.keys(get().pendingMessages || {}).forEach((clientMessageId) => {
-        get().retryPendingMessage(clientMessageId);
+        const message = (get().messages || []).find((item) => getClientMessageId(item) === clientMessageId);
+        if (message?.status === "pending") {
+          get().retryPendingMessage(clientMessageId);
+        }
       });
     });
   },

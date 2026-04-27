@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 import cloudinary from "../lib/cloudinary.js";
-import { emitMessageEvent, io } from "../lib/socket.js";
+import { emitMessageEvent } from "../lib/socket.js";
 import { SOCKET_EVENTS } from "../constants/socket.events.js";
 import { getOrCreateConversation } from "./conversation.controller.js";
 import Message from "../models/message.model.js";
@@ -136,7 +136,7 @@ const findExistingMessageByIdempotency = async ({ conversationId, senderId, clie
     .populate("receiverId", "fullName profilePic");
 };
 
-const createOrReuseMessage = async ({ payload, conversation, senderId, emitTargets, emitEventName }) => {
+const createOrReuseMessage = async ({ payload, conversation, senderId }) => {
   const existingMessage = await findExistingMessageByIdempotency({
     conversationId: conversation._id,
     senderId,
@@ -155,9 +155,6 @@ const createOrReuseMessage = async ({ payload, conversation, senderId, emitTarge
   conversation.lastMessage = populatedMessage._id;
   conversation.lastActivityAt = populatedMessage.createdAt;
   await conversation.save();
-
-  io.to(String(conversation._id)).emit(SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
-  emitMessageEvent(emitTargets, emitEventName, populatedMessage);
 
   return { message: populatedMessage, duplicate: false };
 };
@@ -372,11 +369,8 @@ export const sendMessage = async (req, res) => {
     conversation.lastActivityAt = populatedMessage.createdAt;
     await conversation.save();
 
-    io.to(String(conversation._id)).emit(SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
-    emitMessageEvent(senderId, SOCKET_EVENTS.MESSAGE_SENT, populatedMessage);
-    emitMessageEvent(receiverId, SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
-
     res.status(201).json(populatedMessage);
+    emitMessageEvent(receiverId, SOCKET_EVENTS.MESSAGE_NEW, populatedMessage);
   } catch (error) {
     console.log("Error in sendMessage controller: ", error.message);
     res.status(500).json({ error: "Internal server error" });
@@ -464,8 +458,6 @@ export const sendMessageToConversation = async (req, res) => {
       payload,
       conversation,
       senderId,
-      emitTargets: participantIds,
-      emitEventName: SOCKET_EVENTS.MESSAGE_NEW,
     });
 
     conversation.lastReadAt?.set(String(senderId), message.createdAt);
@@ -473,6 +465,11 @@ export const sendMessageToConversation = async (req, res) => {
     incrementMetric("messageSendSuccess");
 
     res.status(201).json(message);
+    emitMessageEvent(
+      participantIds.filter((participantId) => participantId !== String(senderId)),
+      SOCKET_EVENTS.MESSAGE_NEW,
+      message
+    );
   } catch (error) {
     incrementMetric("messageSendFailures");
     logger.error("message.send.failed", {

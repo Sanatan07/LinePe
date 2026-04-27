@@ -229,13 +229,16 @@ const ChatContainer = () => {
                         <span className="text-[10px] text-base-content/50">Sending...</span>
                       )}
                       {status === "failed" && (
-                        <button
-                          type="button"
-                          className="text-[10px] text-error underline"
-                          onClick={() => retryPendingMessage(message.clientMessageId)}
-                        >
-                          Retry
-                        </button>
+                        <span className="inline-flex items-center gap-1 text-[10px] text-error">
+                          <span title={message.errorMessage || "Failed to send"}>Failed</span>
+                          <button
+                            type="button"
+                            className="underline"
+                            onClick={() => retryPendingMessage(message.clientMessageId)}
+                          >
+                            Retry
+                          </button>
+                        </span>
                       )}
                       {messageSenderId === currentUserId && status !== "pending" && status !== "failed" && (
                         <span className="text-xs opacity-70">
