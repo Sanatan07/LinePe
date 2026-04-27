@@ -225,10 +225,10 @@ const ChatContainer = () => {
                   </time>
                   {isOwnMessage && (
                     <span className="inline-flex items-center">
-                      {message?.deliveryState === "sending" && (
+                      {status === "pending" && (
                         <span className="text-[10px] text-base-content/50">Sending...</span>
                       )}
-                      {message?.deliveryState === "failed" && (
+                      {status === "failed" && (
                         <button
                           type="button"
                           className="text-[10px] text-error underline"
@@ -237,7 +237,7 @@ const ChatContainer = () => {
                           Retry
                         </button>
                       )}
-                      {messageSenderId === currentUserId && message?.deliveryState !== "sending" && message?.deliveryState !== "failed" && (
+                      {messageSenderId === currentUserId && status !== "pending" && status !== "failed" && (
                         <span className="text-xs opacity-70">
                           {status === "sent" && "\u2713"}
                           {status === "delivered" && "\u2713\u2713"}

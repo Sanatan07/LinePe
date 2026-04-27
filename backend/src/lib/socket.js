@@ -171,7 +171,9 @@ io.on("connection", (socket) => {
           deliveredAt: new Date(),
         });
 
-        message.status = "delivered";
+        if (message.status === "sent") {
+          message.status = "delivered";
+        }
         await message.save();
       }
 
@@ -193,6 +195,7 @@ io.on("connection", (socket) => {
       const messages = await Message.find({
         conversationId,
         senderId: { $ne: userId },
+        status: { $in: ["sent", "delivered"] },
         "readBy.user": { $ne: userId },
       }).select("_id");
 
@@ -209,6 +212,7 @@ io.on("connection", (socket) => {
         {
           conversationId,
           senderId: { $ne: userId },
+          status: { $in: ["sent", "delivered"] },
           "readBy.user": { $ne: userId },
         },
         {

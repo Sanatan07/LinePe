@@ -378,7 +378,7 @@ export const useChatStore = create((set, get) => ({
       set({
         messages: (res.data.messages || []).map((message) => ({
           ...message,
-          deliveryState: "sent",
+          status: message.status || "sent",
         })),
         messagesCursor: res.data.nextBefore || null,
         messagesHasMore: Boolean(res.data.hasMore),
@@ -619,8 +619,7 @@ export const useChatStore = create((set, get) => ({
       text: messageData.text || "",
       attachments: messageData.attachments || [],
       createdAt: new Date().toISOString(),
-      status: "sent",
-      deliveryState: "sending",
+      status: "pending",
     };
 
     set((state) => ({
@@ -653,7 +652,7 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: upsertMessage(state.messages, {
           ...res.data,
-          deliveryState: "sent",
+          status: res.data?.status || "sent",
         }),
         conversations: upsertConversation(state.conversations, {
           _id: conversationId,
@@ -670,7 +669,7 @@ export const useChatStore = create((set, get) => ({
       set((state) => ({
         messages: state.messages.map((message) =>
           getClientMessageId(message) === clientMessageId
-            ? { ...message, deliveryState: "failed" }
+            ? { ...message, status: "failed" }
             : message
         ),
         pendingMessages: {
@@ -704,7 +703,7 @@ export const useChatStore = create((set, get) => ({
     set((state) => ({
       messages: state.messages.map((message) =>
         getClientMessageId(message) === clientMessageId
-          ? { ...message, deliveryState: "sending" }
+          ? { ...message, status: "pending" }
           : message
       ),
     }));
@@ -761,7 +760,7 @@ export const useChatStore = create((set, get) => ({
         set((state) => ({
           messages: upsertMessage(state.messages, {
             ...incomingMessage,
-            deliveryState: "sent",
+            status: incomingMessage.status || "sent",
           }),
         }));
       }
@@ -775,7 +774,6 @@ export const useChatStore = create((set, get) => ({
                 ...message,
                 status: receipt.status || "delivered",
                 deliveredTo: Array.isArray(receipt.deliveredTo) ? receipt.deliveredTo : message.deliveredTo,
-                deliveryState: "sent",
               }
             : message
         ),
@@ -786,12 +784,14 @@ export const useChatStore = create((set, get) => ({
       const conversationId = String(payload?.conversationId || "");
       const readerId = getUserId(payload?.readBy || payload?.readerId);
       const messageIds = Array.isArray(payload?.messageIds) ? payload.messageIds.map((id) => String(id)) : null;
+      const hasExplicitMessageIds = Array.isArray(messageIds);
       if (!conversationId) return;
 
       set((state) => ({
         messages: state.messages.map((message) => {
           if (String(message?.conversationId || "") !== conversationId) return message;
-          if (messageIds && messageIds.length > 0 && !messageIds.includes(getMessageId(message))) return message;
+          if (hasExplicitMessageIds && !messageIds.includes(getMessageId(message))) return message;
+          if (!["sent", "delivered"].includes(message.status || "sent")) return message;
           if (message.status === "read") return message;
           return {
             ...message,
@@ -885,11 +885,11 @@ export const useChatStore = create((set, get) => ({
       socket.emit(SOCKET_EVENTS.CONVERSATION_JOIN, nextConversationId);
     }
 
-    set((state) => ({
+    set({
       selectedConversation,
       typingUsers: [],
       chatSearchResults: [],
       highlightMessageId: null,
-    }));
+    });
   },
 }));

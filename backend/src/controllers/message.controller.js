@@ -507,7 +507,7 @@ export const markMessagesAsRead = async (req, res) => {
       {
         conversationId: conversation._id,
         receiverId: readerId,
-        status: { $ne: "read" },
+        status: { $in: ["sent", "delivered"] },
       },
       { $set: { status: "read" } }
     );
@@ -554,7 +554,7 @@ export const markConversationAsRead = async (req, res) => {
         {
           conversationId: conversation._id,
           receiverId: readerId,
-          status: { $ne: "read" },
+          status: { $in: ["sent", "delivered"] },
         },
         { $set: { status: "read" } }
       );
