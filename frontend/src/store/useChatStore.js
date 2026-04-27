@@ -576,22 +576,17 @@ export const useChatStore = create((set, get) => ({
       const targetConversationId = getConversationId(conversation);
       if (!targetConversationId) return;
 
-      const socket = useAuthStore.getState().socket;
-      if (socket) {
-        socket.emit(SOCKET_EVENTS.MESSAGE_READ, {
-          conversationId: targetConversationId,
-        });
-      }
-
       const res = await axiosInstance.post(`/messages/conversation/read/${targetConversationId}`);
       const updatedConversationId = String(res.data?.conversationId || "");
       const readAt = res.data?.readAt || new Date().toISOString();
+      const messageIds = Array.isArray(res.data?.messageIds) ? res.data.messageIds.map((id) => String(id)) : null;
       if (!updatedConversationId) return;
 
       set((state) => ({
         messages: state.messages.map((message) => {
           const messageConversationId = String(message?.conversationId || "");
           if (messageConversationId !== updatedConversationId) return message;
+          if (messageIds && messageIds.length > 0 && !messageIds.includes(getMessageId(message))) return message;
 
           const receiverId = getUserId(message.receiverId);
           const authUserId = getUserId(useAuthStore.getState().authUser);

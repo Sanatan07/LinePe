@@ -499,23 +499,31 @@ export const markMessagesAsRead = async (req, res) => {
     const conversation = await getOrCreateConversation([readerId, otherUserId]);
 
     const readAt = new Date();
+    const unreadMessages = await Message.find({
+      conversationId: conversation._id,
+      receiverId: readerId,
+      status: { $in: ["sent", "delivered"] },
+      "readBy.user": { $ne: readerId },
+    }).select("_id");
+    const messageIds = unreadMessages.map((message) => message._id);
 
     const updateResult = await Message.updateMany(
+      { _id: { $in: messageIds } },
       {
-        conversationId: conversation._id,
-        receiverId: readerId,
-        status: { $in: ["sent", "delivered"] },
-      },
-      { $set: { status: "read", readAt } }
+        $set: { status: "read", readAt },
+        $push: { readBy: { user: readerId, readAt } },
+      }
     );
 
     conversation.unreadCounts?.set(String(readerId), 0);
     conversation.lastReadAt?.set(String(readerId), readAt);
     await conversation.save();
 
-    emitMessageEvent([otherUserId, readerId], SOCKET_EVENTS.MESSAGE_READ, {
+    emitMessageEvent(otherUserId, SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
       conversationId: conversation._id,
+      readBy: readerId,
       readerId,
+      messageIds,
       readAt: readAt.toISOString(),
     });
 
@@ -523,6 +531,7 @@ export const markMessagesAsRead = async (req, res) => {
       conversationId: conversation._id,
       unreadCount: 0,
       updatedCount: updateResult.modifiedCount ?? updateResult.nModified ?? 0,
+      messageIds,
       readAt: readAt.toISOString(),
     });
   } catch (error) {
@@ -544,32 +553,52 @@ export const markConversationAsRead = async (req, res) => {
     if (!conversation) return res.status(404).json({ message: "Conversation not found" });
 
     const readAt = new Date();
+    const participantIds = (conversation.participants || []).map(String);
+    const isDirect = conversation.kind === "direct";
+    const unreadQuery = {
+      conversationId: conversation._id,
+      senderId: { $ne: readerId },
+      "readBy.user": { $ne: readerId },
+    };
 
-    // For groups, just clear counts; for direct, also mark messages read for this reader.
-    if (conversation.kind === "direct") {
-      await Message.updateMany(
-        {
-          conversationId: conversation._id,
-          receiverId: readerId,
-          status: { $in: ["sent", "delivered"] },
-        },
-        { $set: { status: "read", readAt } }
-      );
+    if (isDirect) {
+      unreadQuery.receiverId = readerId;
+      unreadQuery.status = { $in: ["sent", "delivered"] };
+    }
+
+    const unreadMessages = await Message.find(unreadQuery).select("_id");
+    const messageIds = unreadMessages.map((message) => message._id);
+
+    if (messageIds.length > 0) {
+      const update = isDirect
+        ? {
+            $set: { status: "read", readAt },
+            $push: { readBy: { user: readerId, readAt } },
+          }
+        : {
+            $push: { readBy: { user: readerId, readAt } },
+          };
+
+      await Message.updateMany({ _id: { $in: messageIds } }, update);
     }
 
     conversation.unreadCounts?.set(String(readerId), 0);
     conversation.lastReadAt?.set(String(readerId), readAt);
     await conversation.save();
 
-    emitMessageEvent((conversation.participants || []).map(String), SOCKET_EVENTS.MESSAGE_READ, {
+    emitMessageEvent(participantIds.filter((participantId) => participantId !== String(readerId)), SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
       conversationId: conversation._id,
+      readBy: readerId,
       readerId,
+      messageIds,
       readAt: readAt.toISOString(),
     });
 
     res.status(200).json({
       conversationId: conversation._id,
       unreadCount: 0,
+      updatedCount: messageIds.length,
+      messageIds,
       readAt: readAt.toISOString(),
     });
   } catch (error) {
