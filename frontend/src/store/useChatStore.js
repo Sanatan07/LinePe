@@ -579,6 +579,7 @@ export const useChatStore = create((set, get) => ({
 
       const res = await axiosInstance.post(`/messages/conversation/read/${targetConversationId}`);
       const updatedConversationId = String(res.data?.conversationId || "");
+      const readAt = res.data?.readAt || new Date().toISOString();
       if (!updatedConversationId) return;
 
       set((state) => ({
@@ -591,7 +592,7 @@ export const useChatStore = create((set, get) => ({
 
           if (receiverId !== authUserId) return message;
           if (message.status === "read") return message;
-          return { ...message, status: "read" };
+          return { ...message, status: "read", readAt };
         }),
         conversations: upsertConversation(state.conversations, {
           _id: updatedConversationId,
@@ -773,6 +774,7 @@ export const useChatStore = create((set, get) => ({
             ? {
                 ...message,
                 status: receipt.status || "delivered",
+                deliveredAt: receipt.deliveredAt || message.deliveredAt,
                 deliveredTo: Array.isArray(receipt.deliveredTo) ? receipt.deliveredTo : message.deliveredTo,
               }
             : message
@@ -783,6 +785,7 @@ export const useChatStore = create((set, get) => ({
     const handleReadMessage = (payload) => {
       const conversationId = String(payload?.conversationId || "");
       const readerId = getUserId(payload?.readBy || payload?.readerId);
+      const readAt = payload?.readAt || new Date().toISOString();
       const messageIds = Array.isArray(payload?.messageIds) ? payload.messageIds.map((id) => String(id)) : null;
       const hasExplicitMessageIds = Array.isArray(messageIds);
       if (!conversationId) return;
@@ -796,11 +799,12 @@ export const useChatStore = create((set, get) => ({
           return {
             ...message,
             status: "read",
+            readAt,
             readBy: Array.isArray(message.readBy)
               ? message.readBy.some((entry) => getUserId(entry?.user) === readerId)
                 ? message.readBy
-                : [...message.readBy, { user: readerId, readAt: new Date().toISOString() }]
-              : [{ user: readerId, readAt: new Date().toISOString() }],
+                : [...message.readBy, { user: readerId, readAt }]
+              : [{ user: readerId, readAt }],
           };
         }),
         conversations: upsertConversation(state.conversations, {

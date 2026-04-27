@@ -74,6 +74,14 @@ const messageSchema = new mongoose.Schema(
       enum: ["pending", "sent", "delivered", "read", "failed"],
       default: "sent",
     },
+    deliveredAt: {
+      type: Date,
+      default: null,
+    },
+    readAt: {
+      type: Date,
+      default: null,
+    },
     deliveredTo: {
       type: [messageDeliverySchema],
       default: [],

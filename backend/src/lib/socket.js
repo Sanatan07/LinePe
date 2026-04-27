@@ -166,13 +166,17 @@ io.on("connection", (socket) => {
         : false;
 
       if (!alreadyDelivered) {
+        const deliveredAt = new Date();
         message.deliveredTo.push({
           user: userId,
-          deliveredAt: new Date(),
+          deliveredAt,
         });
 
         if (message.status === "sent") {
           message.status = "delivered";
+          if (message.receiverId) {
+            message.deliveredAt = deliveredAt;
+          }
         }
         await message.save();
       }
@@ -180,6 +184,7 @@ io.on("connection", (socket) => {
       io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
         messageId,
         status: message.status,
+        deliveredAt: message.deliveredAt,
         deliveredTo: message.deliveredTo,
       });
     } catch (error) {
@@ -208,6 +213,8 @@ io.on("connection", (socket) => {
         return;
       }
 
+      const readAt = new Date();
+
       await Message.updateMany(
         {
           conversationId,
@@ -219,7 +226,7 @@ io.on("connection", (socket) => {
           $push: {
             readBy: {
               user: userId,
-              readAt: new Date(),
+              readAt,
             },
           },
           $set: {
@@ -228,10 +235,24 @@ io.on("connection", (socket) => {
         }
       );
 
+      await Message.updateMany(
+        {
+          conversationId,
+          senderId: { $ne: userId },
+          receiverId: userId,
+        },
+        {
+          $set: {
+            readAt,
+          },
+        }
+      );
+
       io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_READ_UPDATE, {
         conversationId,
         readBy: userId,
         messageIds: messages.map((msg) => msg._id),
+        readAt: readAt.toISOString(),
       });
     } catch (error) {
       logger.error("socket.message_read.failed", { error, socketId: socket.id, userId });
