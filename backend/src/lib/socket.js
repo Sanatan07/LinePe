@@ -6,6 +6,7 @@ import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 
 import { SOCKET_EVENTS } from "../constants/socket.events.js";
+import Conversation from "../models/conversation.model.js";
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
 import { getRedisClient } from "./redis.js";
@@ -160,6 +161,15 @@ io.on("connection", (socket) => {
       const message = await Message.findById(messageId);
 
       if (!message) return;
+      if (String(message.conversationId || "") !== conversationId) return;
+      if (String(message.senderId || "") === String(userId)) return;
+
+      const conversation = await Conversation.findOne({
+        _id: conversationId,
+        participants: userId,
+      }).select("_id kind");
+
+      if (!conversation) return;
 
       const alreadyDelivered = Array.isArray(message.deliveredTo)
         ? message.deliveredTo.some((entry) => String(entry?.user) === String(userId))
@@ -181,7 +191,7 @@ io.on("connection", (socket) => {
         await message.save();
       }
 
-      io.to(conversationId).emit(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
+      emitMessageEvent(message.senderId, SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
         messageId,
         status: message.status,
         deliveredAt: message.deliveredAt,

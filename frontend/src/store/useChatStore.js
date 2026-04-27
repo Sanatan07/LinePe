@@ -728,13 +728,6 @@ export const useChatStore = create((set, get) => ({
       const isSelectedConversation =
         Boolean(selectedConversationId) && incomingConversationId === selectedConversationId;
 
-      if (isIncomingToMe && incomingMessage?._id && incomingConversationId) {
-        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
-          messageId: incomingMessage._id,
-          conversationId: incomingConversationId,
-        });
-      }
-
       const existing = get().conversations.find(
         (conversation) => getConversationId(conversation) === String(incomingMessage.conversationId || "")
       );
@@ -760,6 +753,13 @@ export const useChatStore = create((set, get) => ({
             status: incomingMessage.status || "sent",
           }),
         }));
+      }
+
+      if (isIncomingToMe && incomingMessage?._id && incomingConversationId) {
+        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
+          messageId: incomingMessage._id,
+          conversationId: incomingConversationId,
+        });
       }
     };
 
