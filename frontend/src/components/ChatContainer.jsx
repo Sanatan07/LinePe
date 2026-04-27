@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AlertCircle, Check, CheckCheck, Clock3, RotateCcw } from "lucide-react";
 
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
@@ -8,6 +9,59 @@ import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 
 const getUserId = (value) => String(value?._id || value || "");
+
+const MessageStatusIndicator = ({ status, errorMessage, onRetry }) => {
+  const iconClass = "size-3.5";
+
+  if (status === "pending") {
+    return (
+      <span className="inline-flex items-center text-base-content/50" title="Pending" aria-label="Pending">
+        <Clock3 className={iconClass} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (status === "sent") {
+    return (
+      <span className="inline-flex items-center text-base-content/60" title="Sent" aria-label="Sent">
+        <Check className={iconClass} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (status === "delivered") {
+    return (
+      <span className="inline-flex items-center text-base-content/60" title="Delivered" aria-label="Delivered">
+        <CheckCheck className={iconClass} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (status === "read") {
+    return (
+      <span className="inline-flex items-center text-primary" title="Read" aria-label="Read">
+        <CheckCheck className={iconClass} aria-hidden="true" />
+      </span>
+    );
+  }
+
+  if (status === "failed") {
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-0.5 text-error hover:text-error/80"
+        title={errorMessage || "Failed to send. Retry"}
+        aria-label="Message failed. Retry"
+        onClick={onRetry}
+      >
+        <AlertCircle className={iconClass} aria-hidden="true" />
+        <RotateCcw className="size-3" aria-hidden="true" />
+      </button>
+    );
+  }
+
+  return null;
+};
 
 const ChatContainer = () => {
   const {
@@ -225,28 +279,11 @@ const ChatContainer = () => {
                   </time>
                   {isOwnMessage && (
                     <span className="inline-flex items-center">
-                      {status === "pending" && (
-                        <span className="text-[10px] text-base-content/50">Sending...</span>
-                      )}
-                      {status === "failed" && (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-error">
-                          <span title={message.errorMessage || "Failed to send"}>Failed</span>
-                          <button
-                            type="button"
-                            className="underline"
-                            onClick={() => retryPendingMessage(message.clientMessageId)}
-                          >
-                            Retry
-                          </button>
-                        </span>
-                      )}
-                      {messageSenderId === currentUserId && status !== "pending" && status !== "failed" && (
-                        <span className="text-xs opacity-70">
-                          {status === "sent" && "\u2713"}
-                          {status === "delivered" && "\u2713\u2713"}
-                          {status === "read" && "\u2713\u2713 Read"}
-                        </span>
-                      )}
+                      <MessageStatusIndicator
+                        status={status}
+                        errorMessage={message.errorMessage}
+                        onRetry={() => retryPendingMessage(message.clientMessageId)}
+                      />
                     </span>
                   )}
                 </div>

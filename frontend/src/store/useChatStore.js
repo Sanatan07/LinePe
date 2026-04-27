@@ -103,6 +103,134 @@ export const useChatStore = create((set, get) => ({
   isGroupCreating: false,
   pendingMessages: {},
 
+  addPendingMessage: ({ message, pending }) => {
+    const clientMessageId = getClientMessageId(message);
+    if (!clientMessageId) return;
+
+    set((state) => ({
+      messages: upsertMessage(state.messages, {
+        ...message,
+        status: "pending",
+      }),
+      pendingMessages: {
+        ...state.pendingMessages,
+        [clientMessageId]: pending,
+      },
+    }));
+  },
+
+  replacePendingMessage: (savedMessage) => {
+    const clientMessageId = getClientMessageId(savedMessage);
+
+    set((state) => ({
+      messages: upsertMessage(state.messages, {
+        ...savedMessage,
+        status: savedMessage?.status || "sent",
+        errorMessage: "",
+      }),
+      pendingMessages: clientMessageId
+        ? Object.fromEntries(
+            Object.entries(state.pendingMessages || {}).filter(([key]) => key !== clientMessageId)
+          )
+        : state.pendingMessages,
+    }));
+  },
+
+  markMessageAsSent: (message) => {
+    get().replacePendingMessage({
+      ...message,
+      status: "sent",
+    });
+  },
+
+  markMessageAsDelivered: ({ messageId, status = "delivered", deliveredAt, deliveredTo }) => {
+    const targetMessageId = String(messageId || "");
+    if (!targetMessageId) return;
+
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        getMessageId(message) === targetMessageId
+          ? {
+              ...message,
+              status,
+              deliveredAt: deliveredAt || message.deliveredAt,
+              deliveredTo: Array.isArray(deliveredTo) ? deliveredTo : message.deliveredTo,
+            }
+          : message
+      ),
+    }));
+  },
+
+  markMessagesAsReadStatus: ({ conversationId, messageIds, readerId, readAt }) => {
+    const targetConversationId = String(conversationId || "");
+    const ids = Array.isArray(messageIds) ? messageIds.map((id) => String(id)) : null;
+    const nextReaderId = getUserId(readerId);
+    const nextReadAt = readAt || new Date().toISOString();
+    if (!targetConversationId) return;
+
+    set((state) => ({
+      messages: state.messages.map((message) => {
+        if (String(message?.conversationId || "") !== targetConversationId) return message;
+        if (ids && !ids.includes(getMessageId(message))) return message;
+        if (!["sent", "delivered"].includes(message.status || "sent")) return message;
+
+        return {
+          ...message,
+          status: "read",
+          readAt: nextReadAt,
+          readBy: Array.isArray(message.readBy)
+            ? message.readBy.some((entry) => getUserId(entry?.user) === nextReaderId)
+              ? message.readBy
+              : [...message.readBy, { user: nextReaderId, readAt: nextReadAt }]
+            : [{ user: nextReaderId, readAt: nextReadAt }],
+        };
+      }),
+      conversations: upsertConversation(state.conversations, {
+        _id: targetConversationId,
+        unreadCount: 0,
+      }),
+    }));
+  },
+
+  markMessageAsFailed: ({ clientMessageId, errorMessage, pending }) => {
+    const targetClientMessageId = String(clientMessageId || "");
+    if (!targetClientMessageId) return;
+
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        getClientMessageId(message) === targetClientMessageId
+          ? { ...message, status: "failed", errorMessage }
+          : message
+      ),
+      pendingMessages:
+        pending || state.pendingMessages?.[targetClientMessageId]
+          ? {
+              ...state.pendingMessages,
+              [targetClientMessageId]: {
+                ...(state.pendingMessages?.[targetClientMessageId] || {}),
+                ...pending,
+                clientMessageId: targetClientMessageId,
+                errorMessage,
+                attempts: Number(state.pendingMessages?.[targetClientMessageId]?.attempts || 0) + 1,
+              },
+            }
+          : state.pendingMessages,
+    }));
+  },
+
+  markMessageAsPending: (clientMessageId) => {
+    const targetClientMessageId = String(clientMessageId || "");
+    if (!targetClientMessageId) return;
+
+    set((state) => ({
+      messages: state.messages.map((message) =>
+        getClientMessageId(message) === targetClientMessageId
+          ? { ...message, status: "pending", errorMessage: "" }
+          : message
+      ),
+    }));
+  },
+
   getUsers: async () => {
     set({ isUsersLoading: true });
     try {
@@ -582,24 +710,12 @@ export const useChatStore = create((set, get) => ({
       const messageIds = Array.isArray(res.data?.messageIds) ? res.data.messageIds.map((id) => String(id)) : null;
       if (!updatedConversationId) return;
 
-      set((state) => ({
-        messages: state.messages.map((message) => {
-          const messageConversationId = String(message?.conversationId || "");
-          if (messageConversationId !== updatedConversationId) return message;
-          if (messageIds && messageIds.length > 0 && !messageIds.includes(getMessageId(message))) return message;
-
-          const receiverId = getUserId(message.receiverId);
-          const authUserId = getUserId(useAuthStore.getState().authUser);
-
-          if (receiverId !== authUserId) return message;
-          if (message.status === "read") return message;
-          return { ...message, status: "read", readAt };
-        }),
-        conversations: upsertConversation(state.conversations, {
-          _id: updatedConversationId,
-          unreadCount: 0,
-        }),
-      }));
+      get().markMessagesAsReadStatus({
+        conversationId: updatedConversationId,
+        messageIds,
+        readerId: useAuthStore.getState().authUser,
+        readAt,
+      });
     } catch {
       // Silent: failing to mark read shouldn't block chat UX.
     }
@@ -624,18 +740,15 @@ export const useChatStore = create((set, get) => ({
       status: "pending",
     };
 
-    set((state) => ({
-      messages: upsertMessage(state.messages, optimisticMessage),
-      pendingMessages: {
-        ...state.pendingMessages,
-        [clientMessageId]: {
-          clientMessageId,
-          conversationId,
-          payload: { ...messageData, clientMessageId },
-          attempts: Number(state.pendingMessages?.[clientMessageId]?.attempts || 0),
-        },
+    get().addPendingMessage({
+      message: optimisticMessage,
+      pending: {
+        clientMessageId,
+        conversationId,
+        payload: { ...messageData, clientMessageId },
+        attempts: Number(get().pendingMessages?.[clientMessageId]?.attempts || 0),
       },
-    }));
+    });
 
     try {
       const res = await axiosInstance.post(`/messages/conversation/send/${conversationId}`, {
@@ -645,43 +758,28 @@ export const useChatStore = create((set, get) => ({
         headers: { "x-idempotency-key": clientMessageId },
       });
 
+      get().markMessageAsSent(res.data);
+
       set((state) => ({
-        messages: upsertMessage(state.messages, {
-          ...res.data,
-          status: res.data?.status || "sent",
-        }),
         conversations: upsertConversation(state.conversations, {
           _id: conversationId,
           lastMessage: res.data,
           lastActivityAt: res.data.createdAt,
           unreadCount: 0,
         }),
-        pendingMessages: Object.fromEntries(
-          Object.entries(state.pendingMessages || {}).filter(([key]) => key !== clientMessageId)
-        ),
       }));
       return res.data;
     } catch (error) {
       const errorMessage = getSendErrorMessage(error);
 
-      set((state) => ({
-        messages: state.messages.map((message) =>
-          getClientMessageId(message) === clientMessageId
-            ? { ...message, status: "failed", errorMessage }
-            : message
-        ),
-        pendingMessages: {
-          ...state.pendingMessages,
-          [clientMessageId]: {
-            ...(state.pendingMessages?.[clientMessageId] || {}),
-            clientMessageId,
-            conversationId,
-            payload: { ...messageData, clientMessageId },
-            errorMessage,
-            attempts: Number(state.pendingMessages?.[clientMessageId]?.attempts || 0) + 1,
-          },
+      get().markMessageAsFailed({
+        clientMessageId,
+        errorMessage,
+        pending: {
+          conversationId,
+          payload: { ...messageData, clientMessageId },
         },
-      }));
+      });
 
       toast.error(errorMessage);
       throw error;
@@ -690,18 +788,14 @@ export const useChatStore = create((set, get) => ({
 
   retryPendingMessage: async (clientMessageId) => {
     const pending = get().pendingMessages?.[clientMessageId];
-    if (!pending) return null;
+    if (!pending?.payload) return null;
 
-    set((state) => ({
-      messages: state.messages.map((message) =>
-        getClientMessageId(message) === clientMessageId
-          ? { ...message, status: "pending", errorMessage: "" }
-          : message
-      ),
-    }));
+    get().markMessageAsPending(clientMessageId);
 
     return get().sendMessage(pending.payload);
   },
+
+  retryFailedMessage: async (clientMessageId) => get().retryPendingMessage(clientMessageId),
 
   subscribeToMessages: () => {
     const socket = useAuthStore.getState().socket;
@@ -764,34 +858,22 @@ export const useChatStore = create((set, get) => ({
       const readerId = getUserId(receipt?.readBy || receipt?.readerId);
       const readAt = receipt?.readAt || new Date().toISOString();
 
-      set((state) => ({
-        messages: state.messages.map((message) => {
-          const matchesSingleMessage = receipt?.messageId && getMessageId(message) === String(receipt.messageId);
-          const matchesBatch = messageIds && messageIds.includes(getMessageId(message));
+      if (status === "read") {
+        get().markMessagesAsReadStatus({
+          conversationId: receipt?.conversationId,
+          messageIds,
+          readerId,
+          readAt,
+        });
+        return;
+      }
 
-          if (!matchesSingleMessage && !matchesBatch) return message;
-
-          if (status === "read") {
-            return {
-              ...message,
-              status: "read",
-              readAt,
-              readBy: Array.isArray(message.readBy)
-                ? message.readBy.some((entry) => getUserId(entry?.user) === readerId)
-                  ? message.readBy
-                  : [...message.readBy, { user: readerId, readAt }]
-                : [{ user: readerId, readAt }],
-            };
-          }
-
-          return {
-            ...message,
-            status,
-            deliveredAt: receipt.deliveredAt || message.deliveredAt,
-            deliveredTo: Array.isArray(receipt.deliveredTo) ? receipt.deliveredTo : message.deliveredTo,
-          };
-        }),
-      }));
+      get().markMessageAsDelivered({
+        messageId: receipt?.messageId,
+        status,
+        deliveredAt: receipt?.deliveredAt,
+        deliveredTo: receipt?.deliveredTo,
+      });
     };
 
     const handleMessageError = (payload = {}) => {
@@ -801,13 +883,10 @@ export const useChatStore = create((set, get) => ({
         return;
       }
 
-      set((state) => ({
-        messages: state.messages.map((message) =>
-          getClientMessageId(message) === clientMessageId
-            ? { ...message, status: "failed", errorMessage: payload?.message || "Message failed" }
-            : message
-        ),
-      }));
+      get().markMessageAsFailed({
+        clientMessageId,
+        errorMessage: payload?.message || "Message failed",
+      });
     };
 
     const handleReadMessage = (payload) => {
@@ -818,28 +897,12 @@ export const useChatStore = create((set, get) => ({
       const hasExplicitMessageIds = Array.isArray(messageIds);
       if (!conversationId) return;
 
-      set((state) => ({
-        messages: state.messages.map((message) => {
-          if (String(message?.conversationId || "") !== conversationId) return message;
-          if (hasExplicitMessageIds && !messageIds.includes(getMessageId(message))) return message;
-          if (!["sent", "delivered"].includes(message.status || "sent")) return message;
-          if (message.status === "read") return message;
-          return {
-            ...message,
-            status: "read",
-            readAt,
-            readBy: Array.isArray(message.readBy)
-              ? message.readBy.some((entry) => getUserId(entry?.user) === readerId)
-                ? message.readBy
-                : [...message.readBy, { user: readerId, readAt }]
-              : [{ user: readerId, readAt }],
-          };
-        }),
-        conversations: upsertConversation(state.conversations, {
-          _id: conversationId,
-          unreadCount: 0,
-        }),
-      }));
+      get().markMessagesAsReadStatus({
+        conversationId,
+        messageIds: hasExplicitMessageIds ? messageIds : null,
+        readerId,
+        readAt,
+      });
     };
 
     const handleTypingStart = (payload) => {
