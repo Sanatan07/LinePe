@@ -537,7 +537,7 @@ export const markMessagesAsRead = async (req, res) => {
     conversation.lastReadAt?.set(String(readerId), readAt);
     await conversation.save();
 
-    emitMessageEvent(otherUserId, SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
+    emitMessageEvent([otherUserId, readerId], SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
       conversationId: conversation._id,
       status: "read",
       readBy: readerId,
@@ -605,7 +605,7 @@ export const markConversationAsRead = async (req, res) => {
     conversation.lastReadAt?.set(String(readerId), readAt);
     await conversation.save();
 
-    emitMessageEvent(participantIds.filter((participantId) => participantId !== String(readerId)), SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
+    emitMessageEvent(participantIds, SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
       conversationId: conversation._id,
       status: "read",
       readBy: readerId,

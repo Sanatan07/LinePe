@@ -12,8 +12,11 @@ const createParticipantKey = (participantIds) =>
 
 const toUserId = (value) => String(value?._id || value || "");
 
-const formatConversationForUser = (conversation, currentUserId) => {
-  const unreadCount = Number(conversation.unreadCounts?.get(String(currentUserId)) || 0);
+const formatConversationForUser = (conversation, currentUserId, unreadCountOverride = null) => {
+  const unreadCount =
+    unreadCountOverride === null
+      ? Number(conversation.unreadCounts?.get(String(currentUserId)) || 0)
+      : Number(unreadCountOverride || 0);
   const isMuted = Boolean(conversation.mutedBy?.get(String(currentUserId)) || false);
   const isArchived = Boolean(conversation.archivedBy?.get(String(currentUserId)) || false);
   const isPinned = Boolean(conversation.pinnedBy?.get(String(currentUserId)) || false);
@@ -56,6 +59,50 @@ const formatConversationForUser = (conversation, currentUserId) => {
   };
 };
 
+const getUnreadCountsByConversationId = async (conversations, currentUserId) => {
+  const conversationIds = conversations.map((conversation) => conversation._id);
+  if (conversationIds.length === 0) return new Map();
+
+  const directConversationIds = conversations
+    .filter((conversation) => conversation.kind === "direct")
+    .map((conversation) => conversation._id);
+  const groupConversationIds = conversations
+    .filter((conversation) => conversation.kind === "group")
+    .map((conversation) => conversation._id);
+
+  const [directCounts, groupCounts] = await Promise.all([
+    directConversationIds.length
+      ? Message.aggregate([
+          {
+            $match: {
+              conversationId: { $in: directConversationIds },
+              receiverId: currentUserId,
+              status: { $ne: "read" },
+            },
+          },
+          { $group: { _id: "$conversationId", count: { $sum: 1 } } },
+        ])
+      : [],
+    groupConversationIds.length
+      ? Message.aggregate([
+          {
+            $match: {
+              conversationId: { $in: groupConversationIds },
+              senderId: { $ne: currentUserId },
+              "readBy.user": { $ne: currentUserId },
+            },
+          },
+          { $group: { _id: "$conversationId", count: { $sum: 1 } } },
+        ])
+      : [],
+  ]);
+
+  return [...directCounts, ...groupCounts].reduce((counts, item) => {
+    counts.set(String(item._id), Number(item.count || 0));
+    return counts;
+  }, new Map());
+};
+
 export const getConversations = async (req, res) => {
   try {
     const currentUserId = req.user._id;
@@ -75,8 +122,14 @@ export const getConversations = async (req, res) => {
       })
       .sort({ lastActivityAt: -1 });
 
+    const unreadCounts = await getUnreadCountsByConversationId(conversations, currentUserId);
+
     const formattedConversations = conversations.map((conversation) =>
-      formatConversationForUser(conversation, currentUserId)
+      formatConversationForUser(
+        conversation,
+        currentUserId,
+        unreadCounts.get(String(conversation._id)) || 0
+      )
     );
 
     const visibleConversations = formattedConversations.filter((conversation) => !conversation.hidden);
@@ -111,8 +164,16 @@ export const searchConversations = async (req, res) => {
       })
       .sort({ lastActivityAt: -1 });
 
+    const unreadCounts = await getUnreadCountsByConversationId(conversations, currentUserId);
+
     const formatted = conversations
-      .map((conversation) => formatConversationForUser(conversation, currentUserId))
+      .map((conversation) =>
+        formatConversationForUser(
+          conversation,
+          currentUserId,
+          unreadCounts.get(String(conversation._id)) || 0
+        )
+      )
       .filter((conversation) => !conversation.hidden);
 
     if (!query) {

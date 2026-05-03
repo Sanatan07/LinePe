@@ -240,7 +240,7 @@ io.on("connection", (socket) => {
 
       if (messages.length === 0) {
         emitMessageEvent(
-          (conversation.participants || []).map(String).filter((participantId) => participantId !== String(userId)),
+          (conversation.participants || []).map(String),
           SOCKET_EVENTS.MESSAGE_STATUS_UPDATE,
           {
             conversationId,
@@ -278,7 +278,7 @@ io.on("connection", (socket) => {
       await conversation.save();
 
       emitMessageEvent(
-        (conversation.participants || []).map(String).filter((participantId) => participantId !== String(userId)),
+        (conversation.participants || []).map(String),
         SOCKET_EVENTS.MESSAGE_STATUS_UPDATE,
         {
           conversationId,
