@@ -183,12 +183,13 @@ io.on("connection", (socket) => {
           user: userId,
           deliveredAt,
         });
-
-        applyMessageLifecycleStatus(message, conversation);
-        await message.save();
       }
 
+      applyMessageLifecycleStatus(message, conversation);
+      await message.save();
+
       emitMessageEvent(message.senderId, SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
+        conversationId,
         messageId,
         status: message.status,
         deliveredAt: message.deliveredAt,

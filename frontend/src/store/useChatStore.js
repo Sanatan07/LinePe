@@ -26,9 +26,11 @@ const getMessageRecipientIds = (message, conversation) => {
 
   if (receiverId) return [receiverId];
 
-  return [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
+  const memberIds = [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
     (memberId) => memberId !== senderId
   );
+
+  return memberIds.length > 0 ? memberIds : [];
 };
 
 const hasReceiptForUser = (receipts, userId) =>
@@ -222,10 +224,15 @@ export const useChatStore = create((set, get) => ({
     });
   },
 
-  markMessageAsDelivered: ({ messageId, status = "delivered", deliveredAt, deliveredTo }) => {
+  markMessageAsDelivered: ({ conversationId, messageId, status = "delivered", deliveredAt, deliveredTo }) => {
+    const targetConversationId = String(conversationId || "");
     const targetMessageId = String(messageId || "");
     if (!targetMessageId) return;
-    const conversation = get().selectedConversation;
+    const conversation =
+      targetConversationId && getConversationId(get().selectedConversation) === targetConversationId
+        ? get().selectedConversation
+        : get().conversations.find((item) => getConversationId(item) === targetConversationId) ||
+          get().selectedConversation;
 
     set((state) => ({
       messages: state.messages.map((message) => {
@@ -242,7 +249,7 @@ export const useChatStore = create((set, get) => ({
 
         return {
           ...nextMessage,
-          status: deriveMessageStatus(nextMessage, conversation),
+          status: deriveMessageStatus(nextMessage, conversation) || status,
         };
       }),
     }));
@@ -961,6 +968,9 @@ export const useChatStore = create((set, get) => ({
 
       if (isIncomingToMe && incomingMessage?._id && incomingConversationId) {
         get().confirmMessagesDelivered([incomingMessage]);
+        if (isSelectedConversation) {
+          get().markMessagesAsRead(get().selectedConversation);
+        }
       }
     };
 
@@ -981,6 +991,7 @@ export const useChatStore = create((set, get) => ({
       }
 
       get().markMessageAsDelivered({
+        conversationId: receipt?.conversationId,
         messageId: receipt?.messageId,
         status,
         deliveredAt: receipt?.deliveredAt,

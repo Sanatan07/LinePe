@@ -61,6 +61,8 @@ const getStatusLabel = ({ message, conversation, status }) => {
   return "";
 };
 
+const MAX_COLLAPSED_MESSAGE_LENGTH = 50;
+
 const MessageStatusIndicator = ({ message, conversation, status, errorMessage, onRetry }) => {
   const iconClass = "size-3.5";
   const label = getStatusLabel({ message, conversation, status });
@@ -139,6 +141,7 @@ const ChatContainer = () => {
   const isPrependingRef = useRef(false);
   const prevScrollHeightRef = useRef(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedMessageIds, setExpandedMessageIds] = useState(() => new Set());
 
   const activeSearchResults = useMemo(
     () => (Array.isArray(chatSearchResults) ? chatSearchResults : []),
@@ -211,6 +214,18 @@ const ChatContainer = () => {
     prevScrollHeightRef.current = container.scrollHeight;
     isPrependingRef.current = true;
     await loadOlderMessages();
+  };
+
+  const toggleExpandedMessage = (messageId) => {
+    const targetMessageId = String(messageId || "");
+    if (!targetMessageId) return;
+
+    setExpandedMessageIds((current) => {
+      const next = new Set(current);
+      if (next.has(targetMessageId)) next.delete(targetMessageId);
+      else next.add(targetMessageId);
+      return next;
+    });
   };
 
   if (!selectedConversation) {
@@ -300,11 +315,19 @@ const ChatContainer = () => {
           const isOwnMessage = messageSenderId === currentUserId;
           const status = message?.status || "sent";
           const showSenderName = selectedConversation.kind === "group" && !isOwnMessage;
+          const messageId = String(message._id || message.clientMessageId || "");
+          const messageText = String(message.text || "");
+          const isLongMessage = messageText.length > MAX_COLLAPSED_MESSAGE_LENGTH;
+          const isExpanded = expandedMessageIds.has(messageId);
+          const visibleText =
+            isLongMessage && !isExpanded
+              ? `${messageText.slice(0, MAX_COLLAPSED_MESSAGE_LENGTH).trimEnd()}...`
+              : messageText;
 
           return (
             <div
               key={message._id}
-              data-message-id={message._id}
+              data-message-id={messageId}
               className={`chat ${isOwnMessage ? "chat-end" : "chat-start"}`}
             >
               <div className=" chat-image avatar">
@@ -342,7 +365,7 @@ const ChatContainer = () => {
                   )}
                 </div>
               </div>
-              <div className="chat-bubble flex flex-col">
+              <div className="chat-bubble flex flex-col max-w-[min(78vw,28rem)] whitespace-pre-wrap break-words overflow-hidden">
                 {Array.isArray(message.attachments) &&
                   message.attachments
                     .filter((attachment) => attachment?.type === "image" && attachment?.url)
@@ -362,9 +385,22 @@ const ChatContainer = () => {
                     className="sm:max-w-50 rounded-md mb-2"
                   />
                 )}
-                {message.text && (
-                  <p className={highlightMessageId === message._id ? "bg-warning/20 rounded px-1" : ""}>
-                    {message.text}
+                {messageText && (
+                  <p
+                    className={`max-w-full whitespace-pre-wrap break-words leading-relaxed ${
+                      highlightMessageId === messageId ? "bg-warning/20 rounded px-1" : ""
+                    }`}
+                  >
+                    {visibleText}
+                    {isLongMessage && (
+                      <button
+                        type="button"
+                        className="ml-1 inline text-xs font-medium text-primary hover:text-primary/80"
+                        onClick={() => toggleExpandedMessage(messageId)}
+                      >
+                        {isExpanded ? "Show less" : "Read more"}
+                      </button>
+                    )}
                   </p>
                 )}
               </div>
