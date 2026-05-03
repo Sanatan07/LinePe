@@ -10,6 +10,7 @@ import Conversation from "../models/conversation.model.js";
 import { isSafeHttpUrl, sanitizePlainText } from "../lib/sanitize.js";
 import { logger } from "../lib/logger.js";
 import { incrementMetric } from "../lib/metrics.js";
+import { applyMessageLifecycleStatus } from "../lib/message-lifecycle.js";
 
 const MAX_TEXT_LENGTH = 2000;
 const MAX_CLIENT_MESSAGE_ID_LENGTH = 120;
@@ -42,6 +43,18 @@ const uploadImageBufferToCloudinary = (buffer) =>
   });
 
 const normalizeClientMessageId = (value) => sanitizePlainText(value, { maxLength: MAX_CLIENT_MESSAGE_ID_LENGTH });
+
+const refreshMessageLifecycleStatuses = async ({ messageIds, conversation }) => {
+  if (!Array.isArray(messageIds) || messageIds.length === 0) return;
+
+  const messages = await Message.find({ _id: { $in: messageIds } });
+  await Promise.all(
+    messages.map((message) => {
+      applyMessageLifecycleStatus(message, conversation);
+      return message.save();
+    })
+  );
+};
 
 const buildMessagePayload = async ({
   text,
@@ -532,6 +545,7 @@ export const markMessagesAsRead = async (req, res) => {
         $push: { readBy: { user: readerId, readAt } },
       }
     );
+    await refreshMessageLifecycleStatuses({ messageIds, conversation });
 
     conversation.unreadCounts?.set(String(readerId), 0);
     conversation.lastReadAt?.set(String(readerId), readAt);
@@ -599,6 +613,7 @@ export const markConversationAsRead = async (req, res) => {
           };
 
       await Message.updateMany({ _id: { $in: messageIds } }, update);
+      await refreshMessageLifecycleStatuses({ messageIds, conversation });
     }
 
     conversation.unreadCounts?.set(String(readerId), 0);

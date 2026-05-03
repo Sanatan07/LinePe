@@ -12,6 +12,73 @@ const getUserId = (value) => String(value?._id || value || "");
 
 const getConversationId = (value) => String(value?._id || value?.conversationId || value || "");
 
+const getReceiptUserId = (entry) => getUserId(entry?.user);
+
+const getConversationMembers = (conversation) => {
+  if (!conversation) return [];
+  if (conversation.kind === "group") return conversation.group?.members || [];
+  return [conversation.participant].filter(Boolean);
+};
+
+const getMessageRecipientIds = (message, conversation) => {
+  const senderId = getUserId(message?.senderId);
+  const receiverId = getUserId(message?.receiverId);
+
+  if (receiverId) return [receiverId];
+
+  return [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
+    (memberId) => memberId !== senderId
+  );
+};
+
+const hasReceiptForUser = (receipts, userId) =>
+  Array.isArray(receipts) && receipts.some((entry) => getReceiptUserId(entry) === userId);
+
+const mergeReceipts = (currentReceipts, incomingReceipts, timestampField) => {
+  const receiptsByUserId = new Map();
+
+  (Array.isArray(currentReceipts) ? currentReceipts : []).forEach((entry) => {
+    const userId = getReceiptUserId(entry);
+    if (userId) receiptsByUserId.set(userId, entry);
+  });
+
+  (Array.isArray(incomingReceipts) ? incomingReceipts : []).forEach((entry) => {
+    const userId = getReceiptUserId(entry);
+    if (!userId) return;
+
+    receiptsByUserId.set(userId, {
+      ...(receiptsByUserId.get(userId) || {}),
+      ...entry,
+      user: entry?.user || userId,
+      [timestampField]: entry?.[timestampField] || receiptsByUserId.get(userId)?.[timestampField],
+    });
+  });
+
+  return [...receiptsByUserId.values()];
+};
+
+const deriveMessageStatus = (message, conversation) => {
+  const currentStatus = message?.status || "sent";
+  if (["pending", "failed"].includes(currentStatus)) return currentStatus;
+
+  const recipientIds = getMessageRecipientIds(message, conversation);
+  if (recipientIds.length === 0) return currentStatus;
+
+  if (recipientIds.every((userId) => hasReceiptForUser(message?.readBy, userId))) {
+    return "read";
+  }
+
+  if (
+    recipientIds.every(
+      (userId) => hasReceiptForUser(message?.deliveredTo, userId) || hasReceiptForUser(message?.readBy, userId)
+    )
+  ) {
+    return "delivered";
+  }
+
+  return "sent";
+};
+
 const upsertMessage = (messages, incomingMessage) => {
   const incomingMessageId = getMessageId(incomingMessage);
   const incomingClientMessageId = getClientMessageId(incomingMessage);
@@ -158,18 +225,26 @@ export const useChatStore = create((set, get) => ({
   markMessageAsDelivered: ({ messageId, status = "delivered", deliveredAt, deliveredTo }) => {
     const targetMessageId = String(messageId || "");
     if (!targetMessageId) return;
+    const conversation = get().selectedConversation;
 
     set((state) => ({
-      messages: state.messages.map((message) =>
-        getMessageId(message) === targetMessageId
-          ? {
-              ...message,
-              status,
-              deliveredAt: deliveredAt || message.deliveredAt,
-              deliveredTo: Array.isArray(deliveredTo) ? deliveredTo : message.deliveredTo,
-            }
-          : message
-      ),
+      messages: state.messages.map((message) => {
+        if (getMessageId(message) !== targetMessageId) return message;
+
+        const nextMessage = {
+          ...message,
+          status,
+          deliveredAt: deliveredAt || message.deliveredAt,
+          deliveredTo: Array.isArray(deliveredTo)
+            ? mergeReceipts(message.deliveredTo, deliveredTo, "deliveredAt")
+            : message.deliveredTo,
+        };
+
+        return {
+          ...nextMessage,
+          status: deriveMessageStatus(nextMessage, conversation),
+        };
+      }),
     }));
   },
 
@@ -179,22 +254,30 @@ export const useChatStore = create((set, get) => ({
     const nextReaderId = getUserId(readerId);
     const nextReadAt = readAt || new Date().toISOString();
     if (!targetConversationId) return;
+    const conversation =
+      getConversationId(get().selectedConversation) === targetConversationId
+        ? get().selectedConversation
+        : get().conversations.find((item) => getConversationId(item) === targetConversationId);
 
     set((state) => ({
       messages: state.messages.map((message) => {
         if (String(message?.conversationId || "") !== targetConversationId) return message;
         if (ids && !ids.includes(getMessageId(message))) return message;
-        if (!["sent", "delivered"].includes(message.status || "sent")) return message;
+        if (["pending", "failed"].includes(message.status || "")) return message;
 
-        return {
+        const nextMessage = {
           ...message,
-          status: "read",
           readAt: nextReadAt,
           readBy: Array.isArray(message.readBy)
             ? message.readBy.some((entry) => getUserId(entry?.user) === nextReaderId)
               ? message.readBy
               : [...message.readBy, { user: nextReaderId, readAt: nextReadAt }]
             : [{ user: nextReaderId, readAt: nextReadAt }],
+        };
+
+        return {
+          ...nextMessage,
+          status: deriveMessageStatus(nextMessage, conversation),
         };
       }),
       conversations: upsertConversation(state.conversations, {

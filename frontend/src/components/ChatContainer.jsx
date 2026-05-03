@@ -10,12 +10,64 @@ import MessageSkeleton from "./skeletons/MessageSkeleton";
 
 const getUserId = (value) => String(value?._id || value || "");
 
-const MessageStatusIndicator = ({ status, errorMessage, onRetry }) => {
+const getConversationMembers = (conversation) => {
+  if (!conversation) return [];
+  if (conversation.kind === "group") return conversation.group?.members || [];
+  return [conversation.participant].filter(Boolean);
+};
+
+const getReceiptUserId = (entry) => getUserId(entry?.user);
+
+const getMessageRecipients = (message, conversation) => {
+  const senderId = getUserId(message?.senderId);
+  const receiverId = getUserId(message?.receiverId);
+
+  if (receiverId) return [receiverId];
+
+  return [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
+    (memberId) => memberId !== senderId
+  );
+};
+
+const getReceiptCount = (message, field) =>
+  new Set((Array.isArray(message?.[field]) ? message[field] : []).map(getReceiptUserId).filter(Boolean)).size;
+
+const getDeliveredLikeCount = (message) =>
+  new Set(
+    [
+      ...(Array.isArray(message?.deliveredTo) ? message.deliveredTo : []),
+      ...(Array.isArray(message?.readBy) ? message.readBy : []),
+    ]
+      .map(getReceiptUserId)
+      .filter(Boolean)
+  ).size;
+
+const getStatusLabel = ({ message, conversation, status }) => {
+  const totalRecipients = getMessageRecipients(message, conversation).length;
+  if (status === "pending") return "Pending";
+  if (status === "sent") return "Sent";
+  if (status === "failed") return message?.errorMessage || "Failed to send. Retry";
+
+  if (status === "delivered") {
+    const deliveredCount = Math.min(totalRecipients, getDeliveredLikeCount(message));
+    return totalRecipients > 1 ? `Delivered to ${deliveredCount}/${totalRecipients}` : "Delivered";
+  }
+
+  if (status === "read") {
+    const readCount = Math.min(totalRecipients, getReceiptCount(message, "readBy"));
+    return totalRecipients > 1 ? `Read by ${readCount}/${totalRecipients}` : "Read";
+  }
+
+  return "";
+};
+
+const MessageStatusIndicator = ({ message, conversation, status, errorMessage, onRetry }) => {
   const iconClass = "size-3.5";
+  const label = getStatusLabel({ message, conversation, status });
 
   if (status === "pending") {
     return (
-      <span className="inline-flex items-center text-base-content/50" title="Pending" aria-label="Pending">
+      <span className="inline-flex items-center text-base-content/50" title={label} aria-label={label}>
         <Clock3 className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -23,7 +75,7 @@ const MessageStatusIndicator = ({ status, errorMessage, onRetry }) => {
 
   if (status === "sent") {
     return (
-      <span className="inline-flex items-center text-base-content/60" title="Sent" aria-label="Sent">
+      <span className="inline-flex items-center text-base-content/60" title={label} aria-label={label}>
         <Check className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -31,7 +83,7 @@ const MessageStatusIndicator = ({ status, errorMessage, onRetry }) => {
 
   if (status === "delivered") {
     return (
-      <span className="inline-flex items-center text-base-content/60" title="Delivered" aria-label="Delivered">
+      <span className="inline-flex items-center text-base-content/60" title={label} aria-label={label}>
         <CheckCheck className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -39,7 +91,7 @@ const MessageStatusIndicator = ({ status, errorMessage, onRetry }) => {
 
   if (status === "read") {
     return (
-      <span className="inline-flex items-center text-primary" title="Read" aria-label="Read">
+      <span className="inline-flex items-center text-primary" title={label} aria-label={label}>
         <CheckCheck className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -50,8 +102,8 @@ const MessageStatusIndicator = ({ status, errorMessage, onRetry }) => {
       <button
         type="button"
         className="inline-flex items-center gap-0.5 text-error hover:text-error/80"
-        title={errorMessage || "Failed to send. Retry"}
-        aria-label="Message failed. Retry"
+        title={errorMessage || label}
+        aria-label={label}
         onClick={onRetry}
       >
         <AlertCircle className={iconClass} aria-hidden="true" />
@@ -280,6 +332,8 @@ const ChatContainer = () => {
                   {isOwnMessage && (
                     <span className="inline-flex items-center">
                       <MessageStatusIndicator
+                        message={message}
+                        conversation={selectedConversation}
                         status={status}
                         errorMessage={message.errorMessage}
                         onRetry={() => retryPendingMessage(message.clientMessageId)}

@@ -14,6 +14,7 @@ import { createInMemoryPresenceStore, createRedisPresenceStore } from "./presenc
 import { incrementMetric } from "./metrics.js";
 import { logger } from "./logger.js";
 import { getJwtSecret } from "./secrets.js";
+import { applyMessageLifecycleStatus } from "./message-lifecycle.js";
 
 dotenv.config();
 
@@ -167,7 +168,7 @@ io.on("connection", (socket) => {
       const conversation = await Conversation.findOne({
         _id: conversationId,
         participants: userId,
-      }).select("_id kind");
+      }).select("_id kind participants");
 
       if (!conversation) return;
       if (message.receiverId && String(message.receiverId) !== String(userId)) return;
@@ -183,12 +184,7 @@ io.on("connection", (socket) => {
           deliveredAt,
         });
 
-        if (message.status === "sent") {
-          message.status = "delivered";
-          if (message.receiverId) {
-            message.deliveredAt = deliveredAt;
-          }
-        }
+        applyMessageLifecycleStatus(message, conversation);
         await message.save();
       }
 
@@ -272,6 +268,14 @@ io.on("connection", (socket) => {
           };
 
       await Message.updateMany({ _id: { $in: messageIds } }, update);
+
+      const updatedMessages = await Message.find({ _id: { $in: messageIds } });
+      await Promise.all(
+        updatedMessages.map((message) => {
+          applyMessageLifecycleStatus(message, conversation);
+          return message.save();
+        })
+      );
 
       conversation.unreadCounts?.set(String(userId), 0);
       conversation.lastReadAt?.set(String(userId), readAt);
