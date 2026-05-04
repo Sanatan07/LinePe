@@ -9,6 +9,16 @@ const formatDiscoverableUser = (user) => ({
   lastSeen: user.lastSeen || null,
 });
 
+const formatPublicProfile = (user) => ({
+  fullName: user.fullName,
+  username: user.username || "",
+  profilePic: user.profilePic || "",
+  lastSeen: user.lastSeen || null,
+  joinedAt: user.createdAt || null,
+});
+
+const USERNAME_REGEX = /^[a-z0-9_.]+$/;
+
 const normalizeIndianPhoneQuery = (value) => {
   const next = sanitizePlainText(value, { maxLength: 20 });
   if (!next) return "";
@@ -91,6 +101,30 @@ export const checkInviteTarget = async (req, res) => {
     res.status(200).json(formatDiscoverableUser(user));
   } catch (error) {
     console.log("Error in checkInviteTarget controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getPublicProfile = async (req, res) => {
+  try {
+    const username = sanitizePlainText(req.params.username, { maxLength: 30 }).toLowerCase();
+
+    if (!username || !USERNAME_REGEX.test(username)) {
+      return res.status(400).json({ message: "Valid username is required" });
+    }
+
+    const user = await User.findOne({ username }).select("fullName username profilePic lastSeen createdAt");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: formatPublicProfile(user),
+    });
+  } catch (error) {
+    console.log("Error in getPublicProfile controller:", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

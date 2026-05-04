@@ -1,100 +1,29 @@
-import NavBar from "./components/NavBar";
-
-import HomePage from "./pages/HomePage";
-import InvitePage from "./pages/InvitePage";
-import SignUpPage from "./pages/SignUpPage";
-import LoginPage from "./pages/LoginPage";
-import SettingsPage from "./pages/SettingsPage";
-import ProfilePage from "./pages/ProfilePage";
-import AuditPage from "./pages/AuditPage";
-
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useAuthStore } from "./store/useAuthStore";
-import { useThemeStore } from "./store/useThemeStore";
 import { useEffect } from "react";
 
-import { Loader } from "lucide-react";
-import { Toaster } from "react-hot-toast";
+const NEXT_APP_ORIGIN = import.meta.env.VITE_NEXT_APP_ORIGIN || "http://localhost:3000";
 
-const InviteAwareAuthRedirect = ({ authUser, fallback }) => {
-  const location = useLocation();
-  const inviteCode = new URLSearchParams(location.search).get("invite");
-
-  if (authUser && inviteCode) {
-    return <Navigate to={`/invite/${encodeURIComponent(inviteCode)}`} />;
-  }
-
-  return fallback;
+const getNextUrl = () => {
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return `${NEXT_APP_ORIGIN.replace(/\/+$/, "")}${currentPath}`;
 };
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
-  const { theme } = useThemeStore();
-
-  // check authentication on app load
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
-
-  // apply theme to html element
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
-
-  if (isCheckingAuth && !authUser)
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader className="size-10 animate-spin" />
-      </div>
-    );
+    window.location.replace(getNextUrl());
+  }, []);
 
   return (
-    <div>
-      <NavBar />
-
-      <Routes>
-        <Route
-          path="/"
-          element={authUser ? <HomePage /> : <Navigate to="/login" />}
-        />
-
-        <Route
-          path="/signup"
-          element={
-            !authUser ? <SignUpPage /> : <InviteAwareAuthRedirect authUser={authUser} fallback={<Navigate to="/" />} />
-          }
-        />
-
-        <Route
-          path="/login"
-          element={
-            !authUser ? <LoginPage /> : <InviteAwareAuthRedirect authUser={authUser} fallback={<Navigate to="/" />} />
-          }
-        />
-
-        <Route path="/invite/:code" element={<InvitePage />} />
-
-        <Route path="/settings" element={<SettingsPage />} />
-
-        <Route
-          path="/profile"
-          element={authUser ? <ProfilePage /> : <Navigate to="/login" />}
-        />
-
-        <Route
-          path="/audit"
-          element={
-            authUser?.username === "admin070801" || authUser?.email === "admin070801@gmail.com" ? (
-              <AuditPage />
-            ) : (
-              <Navigate to={authUser ? "/" : "/login"} />
-            )
-          }
-        />
-      </Routes>
-
-      <Toaster />
-    </div>
+    <main className="min-h-screen flex items-center justify-center bg-base-200 px-6">
+      <div className="max-w-md rounded-xl border border-base-300 bg-base-100 p-6 text-center shadow-xl">
+        <h1 className="text-2xl font-bold">LinePe moved to Next.js</h1>
+        <p className="mt-3 text-sm text-base-content/70">
+          Redirecting to the server-rendered app.
+        </p>
+        <a className="btn btn-primary mt-5" href={getNextUrl()}>
+          Continue
+        </a>
+      </div>
+    </main>
   );
 };
 
