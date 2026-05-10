@@ -1,6 +1,6 @@
 # LinePe
 
-LinePe is a full-stack real-time chat application built with React, Vite, Express, MongoDB, Socket.IO, Redis, and PostgreSQL. It supports authenticated one-to-one and group messaging, live presence, typing indicators, message status updates, attachments, invites, audit logs, and session management.
+LinePe is a full-stack real-time chat application built with React, Vite, Express, MongoDB, Socket.IO, Redis, and PostgreSQL. It supports authenticated one-to-one messaging, live presence, typing indicators, message status updates, attachments, invites, audit logs, and session management.
 
 ## Features
 
@@ -8,8 +8,7 @@ LinePe is a full-stack real-time chat application built with React, Vite, Expres
 - Access and refresh token rotation with device/session controls
 - Real-time messaging with Socket.IO
 - Online presence, typing indicators, delivered/read status, and message sync
-- Direct chats and group conversations
-- Group membership and admin management
+- Direct chats
 - Message search and conversation search
 - Image/file attachment upload through Cloudinary
 - User search and invite flow
@@ -193,6 +192,7 @@ npm run worker                   # Start background worker
 npm run seed:users               # Seed sample users
 npm run seed:admin               # Seed admin user
 npm run migrate:users:postgres   # Sync existing Mongo users into PostgreSQL
+npm run migrate:remove-groups    # Delete legacy group conversations/messages from MongoDB
 ```
 
 Frontend scripts:
@@ -206,13 +206,13 @@ npm run lint     # Run ESLint
 
 ## API Overview
 
-The backend exposes these main route groups:
+The backend exposes these main route areas:
 
 ```text
 GET  /api/health
 
 /api/auth       # Signup, OTP verification, login, logout, refresh, profile, sessions
-/api/messages   # Users, conversations, direct messages, groups, search, uploads, read status
+/api/messages   # Users, conversations, direct messages, search, uploads, read status
 /api/invites    # Create, inspect, and redeem invite links
 /api/users      # User search and invite target lookup
 /api/logs       # Admin-only audit log access

@@ -3,9 +3,9 @@ import Link from "next/link";
 export const dynamic = "force-static";
 
 export const metadata = {
-  title: "LinePe - Real-time messaging for teams and communities",
+  title: "LinePe - Real-time direct messaging",
   description:
-    "LinePe is a fast real-time messaging app with secure signup, invite links, profiles, settings, and admin audit visibility.",
+    "LinePe is a fast direct messaging app with secure signup, invite links, profiles, settings, and admin audit visibility.",
   alternates: {
     canonical: "/",
   },
@@ -48,14 +48,8 @@ const plans = [
   {
     name: "Free",
     price: "Free",
-    description: "For early users, friends, and small communities getting started with LinePe.",
+    description: "For early users and friends getting started with LinePe.",
     items: ["Real-time conversations", "Account signup and login", "Invite links"],
-  },
-  {
-    name: "Community",
-    price: "Planned",
-    description: "Future tools for groups that need better moderation and member management.",
-    items: ["Member roles", "Conversation controls", "Community insights"],
   },
   {
     name: "Team",
@@ -66,7 +60,7 @@ const plans = [
 ];
 
 const futurePlans = [
-  "Dedicated team workspaces",
+  "Dedicated contact spaces",
   "Richer admin controls",
   "Better media and attachment workflows",
   "Expanded security and audit reporting",
@@ -79,7 +73,7 @@ const jsonLd = {
   applicationCategory: "CommunicationApplication",
   operatingSystem: "Web",
   description:
-    "LinePe is a real-time messaging app for conversations, invite-based access, profiles, settings, and admin audit visibility.",
+  "LinePe is a real-time direct messaging app for conversations, invite-based access, profiles, settings, and admin audit visibility.",
   offers: {
     "@type": "Offer",
     price: "0",
@@ -113,7 +107,7 @@ function ChatPreview() {
 
         <div className="grid min-h-[310px] grid-cols-[150px_1fr] bg-stone-50 sm:grid-cols-[190px_1fr]">
           <div className="border-r border-stone-200 bg-white p-3">
-            {["Project crew", "Family chat", "Design group", "Admin audit"].map(
+            {["Maya", "Arjun", "Design lead", "Admin audit"].map(
               (item, index) => (
                 <div
                   key={item}
@@ -234,7 +228,7 @@ export default function LandingPage() {
                 LinePe
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-stone-700 sm:text-xl">
-                A fast, secure chat experience for people, communities, and teams
+                A fast, secure direct chat experience for people and teams
                 that need conversations, invites, profiles, and admin visibility in
                 one place.
               </p>
@@ -313,8 +307,8 @@ export default function LandingPage() {
                 </h2>
               </div>
               <p className="max-w-md text-sm leading-6 text-stone-600">
-                Plans are intentionally simple today, with clear room for community
-                and team features as LinePe matures.
+                Plans are intentionally simple today, with clear room for safer
+                direct messaging and admin features as LinePe matures.
               </p>
             </div>
 

@@ -28,17 +28,8 @@ const serializeMessage = (message) => {
 
 const serializeConversation = (conversation) => ({
   _id: String(conversation?._id || ""),
-  kind: conversation?.kind === "group" ? "group" : "direct",
+  kind: "direct",
   participant: conversation?.participant ? serializeUser(conversation.participant) : null,
-  group: conversation?.group
-    ? {
-        name: conversation.group.name || "",
-        avatar: conversation.group.avatar || "",
-        members: Array.isArray(conversation.group.members)
-          ? conversation.group.members.map(serializeUser)
-          : [],
-      }
-    : null,
   lastMessage: serializeMessage(conversation?.lastMessage),
   lastActivityAt: conversation?.lastActivityAt || null,
   unreadCount: Number(conversation?.unreadCount || 0),

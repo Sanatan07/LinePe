@@ -12,7 +12,6 @@ const getUserId = (value) => String(value?._id || value || "");
 
 const getConversationMembers = (conversation) => {
   if (!conversation) return [];
-  if (conversation.kind === "group") return conversation.group?.members || [];
   return [conversation.participant].filter(Boolean);
 };
 
@@ -25,7 +24,7 @@ const getMessageRecipients = (message, conversation) => {
   if (receiverId) return [receiverId];
 
   return [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
-    (memberId) => memberId !== senderId
+    (recipientId) => recipientId !== senderId
   );
 };
 
@@ -154,13 +153,9 @@ const ChatContainer = () => {
     getMessages(selectedConversation);
     markMessagesAsRead(selectedConversation);
 
-    if (selectedConversation.kind === "direct") {
-      searchChat({ userId: selectedConversation.participant?._id, query: "" });
-    } else {
-      searchChat({ userId: "", query: "" });
-    }
+    searchChat({ userId: selectedConversation.participant?._id, query: "" });
   }, [
-    selectedConversation?._id,
+    selectedConversation,
     getMessages,
     markMessagesAsRead,
     searchChat,
@@ -252,17 +247,12 @@ const ChatContainer = () => {
             type="text"
             className="input input-bordered input-sm w-full"
             value={searchQuery}
-            placeholder={selectedConversation.kind === "group" ? "Search in chat (direct only)…" : "Search in chat…"}
+            placeholder="Search in chat..."
             onChange={(e) => {
               const next = e.target.value;
               setSearchQuery(next);
-              if (selectedConversation.kind === "direct") {
-                searchChat({ userId: selectedConversation.participant?._id, query: next });
-              } else {
-                searchChat({ userId: "", query: "" });
-              }
+              searchChat({ userId: selectedConversation.participant?._id, query: next });
             }}
-            disabled={selectedConversation.kind === "group"}
           />
 
           {searchQuery.trim() && (
@@ -314,7 +304,6 @@ const ChatContainer = () => {
           const currentUserId = getUserId(authUser);
           const isOwnMessage = messageSenderId === currentUserId;
           const status = message?.status || "sent";
-          const showSenderName = selectedConversation.kind === "group" && !isOwnMessage;
           const messageId = String(message._id || message.clientMessageId || "");
           const messageText = String(message.text || "");
           const isLongMessage = messageText.length > MAX_COLLAPSED_MESSAGE_LENGTH;
@@ -344,11 +333,6 @@ const ChatContainer = () => {
               </div>
               <div className="chat-header mb-1">
                 <div className="flex items-center gap-1.5">
-                  {showSenderName && (
-                    <span className="text-xs text-base-content/70">
-                      {message?.senderId?.fullName || "Member"}
-                    </span>
-                  )}
                   <time className="text-xs opacity-50 ml-1">
                     {formatMessageTime(message.createdAt)}
                   </time>

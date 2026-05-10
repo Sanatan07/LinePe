@@ -10,10 +10,6 @@ import { formatMessageTime } from "../lib/utils";
 const Sidebar = () => {
   const {
     getConversations,
-    getUsers,
-    users,
-    createGroup,
-    isGroupCreating,
     conversations,
     searchResults,
     selectedConversation,
@@ -37,14 +33,9 @@ const Sidebar = () => {
   const [lastResolvedQuery, setLastResolvedQuery] = useState("");
   const [inviteSentPhone, setInviteSentPhone] = useState("");
 
-  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
-  const [groupName, setGroupName] = useState("");
-  const [selectedMemberIds, setSelectedMemberIds] = useState([]);
-
   useEffect(() => {
     getConversations();
-    getUsers();
-  }, [getConversations, getUsers]);
+  }, [getConversations]);
 
   useEffect(() => {
     if (!isNewChatModalOpen) return undefined;
@@ -73,10 +64,7 @@ const Sidebar = () => {
 
     if (q) {
       list = list.filter((conversation) => {
-        const label =
-          conversation.kind === "group"
-            ? conversation.group?.name
-            : conversation.participant?.fullName;
+        const label = conversation.participant?.fullName;
         return String(label || "").toLowerCase().includes(q);
       });
     }
@@ -120,20 +108,6 @@ const Sidebar = () => {
             New chat
           </button>
         </div>
-        <div className="mt-3 hidden lg:flex">
-          <button
-            type="button"
-            className="btn btn-sm btn-outline w-full"
-            onClick={() => {
-              setGroupName("");
-              setSelectedMemberIds([]);
-              setIsGroupModalOpen(true);
-            }}
-            disabled={!authUser}
-          >
-            New group
-          </button>
-        </div>
         <div className="mt-3 hidden lg:flex items-center gap-2">
           <label className="cursor-pointer flex items-center gap-2">
             <input
@@ -150,12 +124,10 @@ const Sidebar = () => {
 
       <div className="overflow-y-auto w-full py-3">
         {filteredConversations.map((conversation) => {
-          const isDirect = conversation.kind !== "group";
-          const participant = isDirect ? conversation.participant : null;
-          const group = !isDirect ? conversation.group : null;
-          const title = isDirect ? participant?.fullName : group?.name || "Group";
-          const avatar = isDirect ? participant?.profilePic : group?.avatar;
-          const isOnline = isDirect ? onlineUsers.includes(participant?._id) : false;
+          const participant = conversation.participant;
+          const title = participant?.fullName || "Chat";
+          const avatar = participant?.profilePic;
+          const isOnline = onlineUsers.includes(participant?._id);
           const unreadCount = Number(conversation.unreadCount || 0);
           const previewText =
             conversation.lastMessage?.text ||
@@ -216,74 +188,6 @@ const Sidebar = () => {
           </div>
         )}
       </div>
-
-      {isGroupModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="bg-base-100 w-full max-w-md rounded-lg border border-base-300 shadow p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Create group</h3>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={() => setIsGroupModalOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-3 flex flex-col gap-3">
-              <input
-                className="input input-bordered w-full"
-                placeholder="Group name"
-                value={groupName}
-                onChange={(e) => setGroupName(e.target.value)}
-                maxLength={60}
-              />
-
-              <div className="border border-base-300 rounded-md p-2 max-h-56 overflow-auto">
-                <div className="text-xs text-base-content/60 mb-2">Select members</div>
-                {(Array.isArray(users) ? users : [])
-                  .filter((u) => String(u?._id || "") !== String(authUser?._id || ""))
-                  .map((u) => {
-                    const checked = selectedMemberIds.includes(u._id);
-                    return (
-                      <label key={u._id} className="flex items-center gap-2 py-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="checkbox checkbox-sm"
-                          checked={checked}
-                          onChange={(e) => {
-                            const enabled = e.target.checked;
-                            setSelectedMemberIds((prev) =>
-                              enabled ? [...prev, u._id] : prev.filter((id) => id !== u._id)
-                            );
-                          }}
-                        />
-                        <span className="text-sm">{u.fullName}</span>
-                      </label>
-                    );
-                  })}
-              </div>
-
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={isGroupCreating}
-                onClick={async () => {
-                  try {
-                    await createGroup({ name: groupName, memberIds: selectedMemberIds });
-                    setIsGroupModalOpen(false);
-                  } catch (error) {
-                    toast.error(error?.response?.data?.message || "Failed to create group");
-                  }
-                }}
-              >
-                {isGroupCreating ? "Creating…" : "Create"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {isNewChatModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">

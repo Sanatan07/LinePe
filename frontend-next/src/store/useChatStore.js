@@ -16,7 +16,6 @@ const getReceiptUserId = (entry) => getUserId(entry?.user);
 
 const getConversationMembers = (conversation) => {
   if (!conversation) return [];
-  if (conversation.kind === "group") return conversation.group?.members || [];
   return [conversation.participant].filter(Boolean);
 };
 
@@ -26,11 +25,11 @@ const getMessageRecipientIds = (message, conversation) => {
 
   if (receiverId) return [receiverId];
 
-  const memberIds = [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
-    (memberId) => memberId !== senderId
+  const recipientIds = [...new Set(getConversationMembers(conversation).map(getUserId).filter(Boolean))].filter(
+    (recipientId) => recipientId !== senderId
   );
 
-  return memberIds.length > 0 ? memberIds : [];
+  return recipientIds.length > 0 ? recipientIds : [];
 };
 
 const hasReceiptForUser = (receipts, userId) =>
@@ -168,7 +167,6 @@ export const useChatStore = create((set, get) => ({
   selectedConversation: null,
   typingUsers: [],
   chatSearchResults: [],
-  groupMediaByConversationId: {},
   highlightMessageId: null,
   messagesCursor: null,
   messagesHasMore: true,
@@ -178,10 +176,8 @@ export const useChatStore = create((set, get) => ({
   isConversationsLoading: false,
   isChatSearchLoading: false,
   isUserSearchLoading: false,
-  isGroupMediaLoading: false,
   isOpeningConversation: false,
   isSendingInvite: false,
-  isGroupCreating: false,
   pendingMessages: {},
 
   addPendingMessage: ({ message, pending }) => {
@@ -361,39 +357,6 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  createGroup: async ({ name, memberIds, avatar } = {}) => {
-    const trimmedName = typeof name === "string" ? name.trim() : "";
-    const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
-
-    if (!trimmedName) {
-      toast.error("Group name is required");
-      return null;
-    }
-
-    if (ids.length < 2) {
-      toast.error("Select at least 2 members");
-      return null;
-    }
-
-    set({ isGroupCreating: true });
-    try {
-      const res = await axiosInstance.post("/messages/groups", {
-        name: trimmedName,
-        avatar: typeof avatar === "string" ? avatar : "",
-        memberIds: ids,
-      });
-
-      await get().getConversations();
-      set({ selectedConversation: res.data });
-      return res.data;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to create group");
-      throw error;
-    } finally {
-      set({ isGroupCreating: false });
-    }
-  },
-
   getConversations: async () => {
     set({ isConversationsLoading: true });
     try {
@@ -413,160 +376,6 @@ export const useChatStore = create((set, get) => ({
       await get().getConversations();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update conversation");
-    }
-  },
-
-  updateGroup: async ({ conversationId, name, avatar }) => {
-    if (!conversationId) return null;
-
-    try {
-      const payload = {};
-      if (typeof name === "string") payload.name = name.trim();
-      if (typeof avatar === "string") payload.avatar = avatar;
-
-      const res = await axiosInstance.patch(`/messages/groups/${conversationId}`, payload);
-      const updatedConversation = res.data;
-
-      set((state) => ({
-        conversations: upsertConversation(state.conversations, updatedConversation),
-        selectedConversation:
-          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
-            ? updatedConversation
-            : state.selectedConversation,
-      }));
-
-      toast.success("Group updated");
-      return updatedConversation;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to update group");
-      return null;
-    }
-  },
-
-  getGroupMedia: async (conversationId) => {
-    if (!conversationId) return [];
-
-    set({ isGroupMediaLoading: true });
-    try {
-      const res = await axiosInstance.get(`/messages/groups/${conversationId}/media`);
-      const media = Array.isArray(res.data?.media) ? res.data.media : [];
-      set((state) => ({
-        groupMediaByConversationId: {
-          ...state.groupMediaByConversationId,
-          [conversationId]: media,
-        },
-      }));
-      return media;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to load group media");
-      return [];
-    } finally {
-      set({ isGroupMediaLoading: false });
-    }
-  },
-
-  addGroupMembers: async ({ conversationId, memberIds }) => {
-    if (!conversationId) return null;
-
-    try {
-      const res = await axiosInstance.post(`/messages/groups/${conversationId}/members`, {
-        memberIds: Array.isArray(memberIds) ? memberIds.filter(Boolean) : [],
-      });
-      const updatedConversation = res.data;
-
-      set((state) => ({
-        conversations: upsertConversation(state.conversations, updatedConversation),
-        selectedConversation:
-          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
-            ? updatedConversation
-            : state.selectedConversation,
-      }));
-
-      toast.success("Members added");
-      return updatedConversation;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to add members");
-      return null;
-    }
-  },
-
-  removeGroupMember: async ({ conversationId, memberId }) => {
-    if (!conversationId || !memberId) return null;
-
-    try {
-      const res = await axiosInstance.delete(`/messages/groups/${conversationId}/members/${memberId}`);
-      const updatedConversation = res.data;
-
-      set((state) => ({
-        conversations: upsertConversation(state.conversations, updatedConversation),
-        selectedConversation:
-          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
-            ? updatedConversation
-            : state.selectedConversation,
-      }));
-
-      toast.success("Member removed");
-      return updatedConversation;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to remove member");
-      return null;
-    }
-  },
-
-  leaveGroup: async (conversationId) => {
-    const targetConversationId = getConversationId(conversationId);
-    if (!targetConversationId) return false;
-
-    try {
-      await axiosInstance.patch(`/messages/group/${targetConversationId}/leave`);
-
-      set((state) => ({
-        conversations: (state.conversations || []).filter(
-          (item) => String(item?._id || "") !== targetConversationId
-        ),
-        selectedConversation:
-          String(state.selectedConversation?._id || "") === targetConversationId
-            ? null
-            : state.selectedConversation,
-        messages:
-          String(state.selectedConversation?._id || "") === targetConversationId
-            ? []
-            : state.messages,
-        typingUsers: [],
-        chatSearchResults: [],
-        highlightMessageId: null,
-      }));
-
-      toast.success("Left group");
-      return true;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to leave group");
-      return false;
-    }
-  },
-
-  setGroupAdmin: async ({ conversationId, memberId, enabled }) => {
-    if (!conversationId || !memberId) return null;
-
-    try {
-      const res = await axiosInstance.post(`/messages/groups/${conversationId}/admins/${memberId}`, {
-        enabled,
-      });
-      const updatedConversation = res.data;
-
-      set((state) => ({
-        conversations: upsertConversation(state.conversations, updatedConversation),
-        selectedConversation:
-          getConversationId(state.selectedConversation) === getConversationId(updatedConversation)
-            ? updatedConversation
-            : state.selectedConversation,
-      }));
-
-      toast.success(enabled ? "Admin added" : "Admin removed");
-      return updatedConversation;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to update admin");
-      return null;
     }
   },
 
@@ -609,8 +418,7 @@ export const useChatStore = create((set, get) => ({
       await get().getConversations();
 
       const selectedConversation = get().selectedConversation;
-      const selectedParticipantId =
-        selectedConversation?.kind === "direct" ? getUserId(selectedConversation?.participant) : "";
+      const selectedParticipantId = getUserId(selectedConversation?.participant);
 
       if (selectedParticipantId === String(userId) && enabled) {
         set({ selectedConversation: null, messages: [] });
@@ -855,7 +663,7 @@ export const useChatStore = create((set, get) => ({
       clientMessageId,
       conversationId,
       senderId: authUser,
-      receiverId: selectedConversation?.kind === "direct" ? selectedConversation?.participant : null,
+      receiverId: selectedConversation?.participant,
       text: messageData.text || "",
       attachments: messageData.attachments || [],
       createdAt: new Date().toISOString(),
@@ -933,8 +741,7 @@ export const useChatStore = create((set, get) => ({
 
       const receiverId = getUserId(incomingMessage.receiverId);
       const incomingConversationId = getConversationId(incomingMessage?.conversationId);
-      const isIncomingToMe =
-        receiverId === authUserId || (incomingConversationId && incomingMessage.receiverId === null);
+      const isIncomingToMe = receiverId === authUserId;
 
       const isSelectedConversation =
         Boolean(selectedConversationId) && incomingConversationId === selectedConversationId;

@@ -18,7 +18,7 @@ const notificationPreferences = [
   {
     name: "Message notifications",
     value: "On",
-    description: "New direct and group messages",
+    description: "New direct messages",
   },
   {
     name: "Invite notifications",
