@@ -167,6 +167,7 @@ io.on("connection", (socket) => {
 
       const conversation = await Conversation.findOne({
         _id: conversationId,
+        kind: { $ne: "group" },
         participants: userId,
       }).select("_id kind participants");
 
@@ -207,6 +208,7 @@ io.on("connection", (socket) => {
 
       const conversation = await Conversation.findOne({
         _id: conversationId,
+        kind: { $ne: "group" },
         participants: userId,
       }).select("_id kind participants unreadCounts lastReadAt");
 
@@ -218,17 +220,13 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const isDirect = conversation.kind === "direct";
       const unreadQuery = {
         conversationId,
         senderId: { $ne: userId },
         "readBy.user": { $ne: userId },
+        receiverId: userId,
+        status: { $in: ["sent", "delivered"] },
       };
-
-      if (isDirect) {
-        unreadQuery.receiverId = userId;
-        unreadQuery.status = { $in: ["sent", "delivered"] };
-      }
 
       const messages = await Message.find({
         ...unreadQuery,
@@ -259,16 +257,13 @@ io.on("connection", (socket) => {
       }
 
       const readAt = new Date();
-      const update = isDirect
-        ? {
-            $set: { status: "read", readAt },
-            $push: { readBy: { user: userId, readAt } },
-          }
-        : {
-            $push: { readBy: { user: userId, readAt } },
-          };
-
-      await Message.updateMany({ _id: { $in: messageIds } }, update);
+      await Message.updateMany(
+        { _id: { $in: messageIds } },
+        {
+          $set: { status: "read", readAt },
+          $push: { readBy: { user: userId, readAt } },
+        }
+      );
 
       const updatedMessages = await Message.find({ _id: { $in: messageIds } });
       await Promise.all(

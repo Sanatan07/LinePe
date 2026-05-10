@@ -8,39 +8,16 @@ const conversationSchema = new mongoose.Schema(
     },
     kind: {
       type: String,
-      enum: ["direct", "group"],
+      enum: ["direct"],
       default: "direct",
       alias: "type",
       index: true,
-    },
-    groupName: {
-      type: String,
-      default: "",
-      trim: true,
-      alias: "name",
-    },
-    groupAvatar: {
-      type: String,
-      default: "",
-      trim: true,
-      alias: "groupImage",
-    },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
     },
     participants: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
-      },
-    ],
-    admins: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
       },
     ],
     unreadCounts: {

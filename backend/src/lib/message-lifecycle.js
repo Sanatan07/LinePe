@@ -2,17 +2,9 @@ const getUserId = (value) => String(value?._id || value || "");
 
 const getEntryUserId = (entry) => getUserId(entry?.user);
 
-const uniqueIds = (values) => [...new Set(values.map(getUserId).filter(Boolean))];
-
-const getRecipientIds = (message, conversation) => {
-  const senderId = getUserId(message?.senderId);
+const getRecipientIds = (message) => {
   const receiverId = getUserId(message?.receiverId);
-
-  if (receiverId) {
-    return [receiverId];
-  }
-
-  return uniqueIds(conversation?.participants || []).filter((participantId) => participantId !== senderId);
+  return receiverId ? [receiverId] : [];
 };
 
 const hasReceiptForUser = (receipts, userId) =>
@@ -29,11 +21,11 @@ const getLatestReceiptDate = (receipts, field) => {
   }, null);
 };
 
-export const deriveMessageLifecycleStatus = (message, conversation) => {
+export const deriveMessageLifecycleStatus = (message) => {
   const currentStatus = message?.status || "sent";
   if (["pending", "failed"].includes(currentStatus)) return currentStatus;
 
-  const recipientIds = getRecipientIds(message, conversation);
+  const recipientIds = getRecipientIds(message);
   if (recipientIds.length === 0) return "sent";
 
   const allRead = recipientIds.every((userId) => hasReceiptForUser(message?.readBy, userId));
@@ -47,8 +39,8 @@ export const deriveMessageLifecycleStatus = (message, conversation) => {
   return "sent";
 };
 
-export const applyMessageLifecycleStatus = (message, conversation) => {
-  const nextStatus = deriveMessageLifecycleStatus(message, conversation);
+export const applyMessageLifecycleStatus = (message) => {
+  const nextStatus = deriveMessageLifecycleStatus(message);
   message.status = nextStatus;
 
   if (nextStatus === "delivered" && !message.deliveredAt) {
@@ -61,4 +53,3 @@ export const applyMessageLifecycleStatus = (message, conversation) => {
 
   return message;
 };
-

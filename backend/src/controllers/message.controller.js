@@ -238,7 +238,11 @@ export const getMessagesByConversation = async (req, res) => {
       return res.status(400).json({ message: "Invalid conversation id" });
     }
 
-    const conversation = await Conversation.findOne({ _id: conversationId, participants: myId }).select("_id kind");
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      kind: { $ne: "group" },
+      participants: myId,
+    }).select("_id kind");
     if (!conversation) return res.status(404).json({ message: "Conversation not found" });
 
     const query = { conversationId: conversation._id };
@@ -412,32 +416,33 @@ export const sendMessageToConversation = async (req, res) => {
 
     const conversation = await Conversation.findOne({
       _id: conversationId,
+      kind: { $ne: "group" },
       participants: senderId,
     });
 
     if (!conversation) return res.status(404).json({ message: "Conversation not found" });
 
-    let receiverId = null;
-    if (conversation.kind === "direct") {
-      const others = (conversation.participants || []).map(String).filter((id) => id !== String(senderId));
-      receiverId = others[0] || null;
+    const receiverId = (conversation.participants || [])
+      .map(String)
+      .find((id) => id !== String(senderId));
 
-      if (receiverId) {
-        const receiver = await User.findById(receiverId).select("_id blockedUsers");
-        if (!receiver) return res.status(404).json({ message: "Receiver not found" });
+    if (!receiverId) {
+      return res.status(400).json({ message: "Receiver is required" });
+    }
 
-        const senderBlocked = Array.isArray(req.user?.blockedUsers)
-          ? req.user.blockedUsers.some((id) => String(id) === String(receiverId))
-          : false;
+    const receiver = await User.findById(receiverId).select("_id blockedUsers");
+    if (!receiver) return res.status(404).json({ message: "Receiver not found" });
 
-        const receiverBlocked = Array.isArray(receiver?.blockedUsers)
-          ? receiver.blockedUsers.some((id) => String(id) === String(senderId))
-          : false;
+    const senderBlocked = Array.isArray(req.user?.blockedUsers)
+      ? req.user.blockedUsers.some((id) => String(id) === String(receiverId))
+      : false;
 
-        if (senderBlocked || receiverBlocked) {
-          return res.status(403).json({ message: "You cannot message this user" });
-        }
-      }
+    const receiverBlocked = Array.isArray(receiver?.blockedUsers)
+      ? receiver.blockedUsers.some((id) => String(id) === String(senderId))
+      : false;
+
+    if (senderBlocked || receiverBlocked) {
+      return res.status(403).json({ message: "You cannot message this user" });
     }
 
     const payload = await buildMessagePayload({
@@ -523,7 +528,7 @@ export const markMessagesAsRead = async (req, res) => {
     const participantKey = [String(readerId), String(otherUserId)].sort().join(":");
     const conversation = await Conversation.findOne({
       participantKey,
-      kind: "direct",
+      kind: { $ne: "group" },
       participants: readerId,
     });
 
@@ -582,37 +587,34 @@ export const markConversationAsRead = async (req, res) => {
       return res.status(400).json({ message: "Invalid conversation id" });
     }
 
-    const conversation = await Conversation.findOne({ _id: conversationId, participants: readerId });
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      kind: { $ne: "group" },
+      participants: readerId,
+    });
     if (!conversation) return res.status(404).json({ message: "Conversation not found" });
 
     const readAt = new Date();
     const participantIds = (conversation.participants || []).map(String);
-    const isDirect = conversation.kind === "direct";
     const unreadQuery = {
       conversationId: conversation._id,
       senderId: { $ne: readerId },
       "readBy.user": { $ne: readerId },
+      receiverId: readerId,
+      status: { $in: ["sent", "delivered"] },
     };
-
-    if (isDirect) {
-      unreadQuery.receiverId = readerId;
-      unreadQuery.status = { $in: ["sent", "delivered"] };
-    }
 
     const unreadMessages = await Message.find(unreadQuery).select("_id");
     const messageIds = unreadMessages.map((message) => message._id);
 
     if (messageIds.length > 0) {
-      const update = isDirect
-        ? {
-            $set: { status: "read", readAt },
-            $push: { readBy: { user: readerId, readAt } },
-          }
-        : {
-            $push: { readBy: { user: readerId, readAt } },
-          };
-
-      await Message.updateMany({ _id: { $in: messageIds } }, update);
+      await Message.updateMany(
+        { _id: { $in: messageIds } },
+        {
+          $set: { status: "read", readAt },
+          $push: { readBy: { user: readerId, readAt } },
+        }
+      );
       await refreshMessageLifecycleStatuses({ messageIds, conversation });
     }
 
