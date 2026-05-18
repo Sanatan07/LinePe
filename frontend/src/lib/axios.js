@@ -1,9 +1,18 @@
 import axios from "axios";
 
-const apiBaseUrl =
-  import.meta.env.VITE_API_URL ||
-  import.meta.env.VITE_API_BASE_URL ||
-  (import.meta.env.MODE === "development" ? "http://localhost:5000/api" : "/api");
+const getApiBaseUrl = () => {
+  const explicitBaseUrl =
+    process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (explicitBaseUrl) {
+    return explicitBaseUrl.replace(/\/+$/, "");
+  }
+
+  const origin = (process.env.NEXT_PUBLIC_API_ORIGIN || "http://localhost:5000").replace(/\/+$/, "");
+  return origin.endsWith("/api") ? origin : `${origin}/api`;
+};
+
+const apiBaseUrl = getApiBaseUrl();
 
 export const axiosInstance = axios.create({
   baseURL: apiBaseUrl,
@@ -23,7 +32,7 @@ axiosInstance.interceptors.response.use(
     if (
       status !== 401 ||
       originalRequest?._retry ||
-      localStorage.getItem(SESSION_HINT_KEY) !== "true" ||
+      (typeof window !== "undefined" && localStorage.getItem(SESSION_HINT_KEY) !== "true") ||
       url.includes("/auth/login") ||
       url.includes("/auth/signup") ||
       url.includes("/auth/refresh-token")
@@ -36,10 +45,14 @@ axiosInstance.interceptors.response.use(
     try {
       refreshPromise ||= axiosInstance.post("/auth/refresh-token");
       await refreshPromise;
-      localStorage.setItem(SESSION_HINT_KEY, "true");
+      if (typeof window !== "undefined") {
+        localStorage.setItem(SESSION_HINT_KEY, "true");
+      }
       return axiosInstance(originalRequest);
     } catch (refreshError) {
-      localStorage.removeItem(SESSION_HINT_KEY);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(SESSION_HINT_KEY);
+      }
       return Promise.reject(refreshError);
     } finally {
       refreshPromise = null;

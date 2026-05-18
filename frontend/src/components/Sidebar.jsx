@@ -1,3 +1,7 @@
+"use client";
+
+/* eslint-disable @next/next/no-img-element */
+
 import { useEffect, useMemo, useState } from "react";
 import { MessageSquarePlus, Pin, Search, Users } from "lucide-react";
 import toast from "react-hot-toast";
@@ -7,7 +11,7 @@ import { useChatStore } from "../store/useChatStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
 import { formatMessageTime } from "../lib/utils";
 
-const Sidebar = () => {
+const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
   const {
     getConversations,
     conversations,
@@ -25,13 +29,18 @@ const Sidebar = () => {
   } = useChatStore();
 
   const { onlineUsers, authUser } = useAuthStore();
+  const displayAuthUser = authUser || initialAuthUser;
+  const displayConversations =
+    Array.isArray(conversations) && conversations.length > 0
+      ? conversations
+      : initialConversations;
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
   const [newChatTab, setNewChatTab] = useState("username");
   const [newChatQuery, setNewChatQuery] = useState("");
   const [lastResolvedQuery, setLastResolvedQuery] = useState("");
-  const [inviteSentPhone, setInviteSentPhone] = useState("");
+  const [inviteResult, setInviteResult] = useState(null); // { query, url }
 
   useEffect(() => {
     getConversations();
@@ -56,7 +65,7 @@ const Sidebar = () => {
 
   const filteredConversations = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = Array.isArray(conversations) ? conversations : [];
+    let list = Array.isArray(displayConversations) ? displayConversations : [];
 
     if (showOnlineOnly) {
       list = list.filter((conversation) => onlineUsers.includes(conversation.participant?._id));
@@ -70,9 +79,9 @@ const Sidebar = () => {
     }
 
     return list;
-  }, [conversations, onlineUsers, search, showOnlineOnly]);
+  }, [displayConversations, onlineUsers, search, showOnlineOnly]);
 
-  if (isConversationsLoading) return <SidebarSkeleton />;
+  if (isConversationsLoading && displayConversations.length === 0) return <SidebarSkeleton />;
 
   return (
     <aside className="h-full w-20 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200">
@@ -98,11 +107,11 @@ const Sidebar = () => {
               setNewChatTab("username");
               setNewChatQuery("");
               setLastResolvedQuery("");
-              setInviteSentPhone("");
+              setInviteResult(null);
               clearUserSearch();
               setIsNewChatModalOpen(true);
             }}
-            disabled={!authUser}
+            disabled={!displayAuthUser}
           >
             <MessageSquarePlus className="size-4" />
             New chat
@@ -184,7 +193,7 @@ const Sidebar = () => {
 
         {filteredConversations.length === 0 && (
           <div className="text-center text-zinc-500 py-4">
-            {authUser ? "No conversations yet" : "No chats available"}
+            {displayAuthUser ? "No conversations yet" : "No chats available"}
           </div>
         )}
       </div>
@@ -204,7 +213,7 @@ const Sidebar = () => {
                   setIsNewChatModalOpen(false);
                   setNewChatQuery("");
                   setLastResolvedQuery("");
-                  setInviteSentPhone("");
+                  setInviteResult(null);
                   clearUserSearch();
                 }}
               >
@@ -220,7 +229,7 @@ const Sidebar = () => {
                   setNewChatTab("username");
                   setNewChatQuery("");
                   setLastResolvedQuery("");
-                  setInviteSentPhone("");
+                  setInviteResult(null);
                   clearUserSearch();
                 }}
               >
@@ -233,7 +242,7 @@ const Sidebar = () => {
                   setNewChatTab("phone");
                   setNewChatQuery("");
                   setLastResolvedQuery("");
-                  setInviteSentPhone("");
+                  setInviteResult(null);
                   clearUserSearch();
                 }}
               >
@@ -253,7 +262,7 @@ const Sidebar = () => {
                     onChange={(e) => {
                       setNewChatQuery(e.target.value);
                       setLastResolvedQuery("");
-                      setInviteSentPhone("");
+                      setInviteResult(null);
                     }}
                     maxLength={50}
                   />
@@ -271,7 +280,76 @@ const Sidebar = () => {
                   )}
 
                   {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
-                    <div className="p-4 text-sm text-base-content/60">No user found</div>
+                    <div className="p-4 space-y-3">
+                      {inviteResult && inviteResult.query === lastResolvedQuery ? (
+                        <div className="space-y-3">
+                          <div className="text-sm font-semibold text-success">Invite created!</div>
+                          <div className="text-sm text-base-content/60">
+                            Share this link with the person you want to invite:
+                          </div>
+                          <div className="flex items-center gap-2 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-base-content/80">
+                              {inviteResult.url}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(inviteResult.url);
+                                toast.success("Link copied!");
+                              }}
+                            >
+                              Copy
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm text-base-content/60">No user found.</div>
+                          <div className="text-sm text-base-content/60">
+                            Invite someone by email:
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="email"
+                              id="usernameTabEmailInvite"
+                              className="input input-bordered input-sm flex-1"
+                              placeholder="friend@example.com"
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={isSendingInvite}
+                              onClick={async () => {
+                                const emailInput = document.getElementById("usernameTabEmailInvite");
+                                const email = emailInput?.value?.trim() || "";
+                                if (!email) return toast.error("Enter an email address");
+                                const result = await sendInvite(email);
+                                if (!result) return;
+                                if (result.alreadyOnPlatform && result.user) {
+                                  const conversation = await openConversationFromUser(result.user);
+                                  if (conversation) {
+                                    setIsNewChatModalOpen(false);
+                                    setNewChatQuery("");
+                                    setLastResolvedQuery("");
+                                    setInviteResult(null);
+                                    clearUserSearch();
+                                  }
+                                  return;
+                                }
+                                setInviteResult({
+                                  query: lastResolvedQuery,
+                                  url: result.invite?.inviteUrl || result.invite?.inviteLink || "",
+                                });
+                                toast.success(result.message || "Invite created successfully");
+                              }}
+                            >
+                              {isSendingInvite ? "Sending..." : "Invite"}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   )}
 
                   {!isUserSearchLoading &&
@@ -286,7 +364,7 @@ const Sidebar = () => {
                             setIsNewChatModalOpen(false);
                             setNewChatQuery("");
                             setLastResolvedQuery("");
-                            setInviteSentPhone("");
+                            setInviteResult(null);
                             clearUserSearch();
                           }
                         }}
@@ -322,7 +400,7 @@ const Sidebar = () => {
                     onChange={(e) => {
                       setNewChatQuery(e.target.value);
                       setLastResolvedQuery("");
-                      setInviteSentPhone("");
+                      setInviteResult(null);
                     }}
                     maxLength={20}
                   />
@@ -351,7 +429,7 @@ const Sidebar = () => {
                             setIsNewChatModalOpen(false);
                             setNewChatQuery("");
                             setLastResolvedQuery("");
-                            setInviteSentPhone("");
+                            setInviteResult(null);
                             clearUserSearch();
                           }
                         }}
@@ -376,11 +454,26 @@ const Sidebar = () => {
 
                   {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
                     <div className="p-4 space-y-3">
-                      {inviteSentPhone && inviteSentPhone === lastResolvedQuery ? (
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium text-success">Invite sent</div>
+                      {inviteResult && inviteResult.query === lastResolvedQuery ? (
+                        <div className="space-y-3">
+                          <div className="text-sm font-semibold text-success">Invite created!</div>
                           <div className="text-sm text-base-content/60">
-                            We created a shareable invite for {inviteSentPhone}.
+                            Share this link with the person you want to invite:
+                          </div>
+                          <div className="flex items-center gap-2 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-base-content/80">
+                              {inviteResult.url}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-ghost shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(inviteResult.url);
+                                toast.success("Link copied!");
+                              }}
+                            >
+                              Copy
+                            </button>
                           </div>
                         </div>
                       ) : (
@@ -402,14 +495,17 @@ const Sidebar = () => {
                                   setIsNewChatModalOpen(false);
                                   setNewChatQuery("");
                                   setLastResolvedQuery("");
-                                  setInviteSentPhone("");
+                                  setInviteResult(null);
                                   clearUserSearch();
                                 }
                                 return;
                               }
 
-                              setInviteSentPhone(lastResolvedQuery);
-                              toast.success(result.message || "Invite sent successfully");
+                              setInviteResult({
+                                query: lastResolvedQuery,
+                                url: result.invite?.inviteUrl || result.invite?.inviteLink || "",
+                              });
+                              toast.success(result.message || "Invite created successfully");
                             }}
                           >
                             {isSendingInvite ? "Sending..." : "Invite to LinePe"}

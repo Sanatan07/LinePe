@@ -8,9 +8,21 @@ import { axiosInstance } from "../lib/axios.js";
 const SESSION_HINT_KEY = "linepe.hasSession";
 
 const BASE_URL =
-  import.meta.env.VITE_SOCKET_URL ||
-  import.meta.env.VITE_API_ORIGIN ||
-  (import.meta.env.MODE === "development" ? "http://localhost:5000" : "/");
+  process.env.NEXT_PUBLIC_SOCKET_URL ||
+  process.env.NEXT_PUBLIC_API_ORIGIN ||
+  "http://localhost:5000";
+
+const setSessionHint = () => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SESSION_HINT_KEY, "true");
+  }
+};
+
+const removeSessionHint = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(SESSION_HINT_KEY);
+  }
+};
 
 const getErrorMessage = (error, fallbackMessage) =>
   error?.response?.data?.message || error?.message || fallbackMessage;
@@ -51,14 +63,14 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/auth/check");
       set({ authUser: res.data });
-      localStorage.setItem(SESSION_HINT_KEY, "true");
+      setSessionHint();
       get().connectSocket();
     } catch (error) {
       if (error?.response?.status !== 401) {
         console.log("Error in checkAuth:", error);
       }
 
-      localStorage.removeItem(SESSION_HINT_KEY);
+      removeSessionHint();
       set({ authUser: null });
       get().disconnectSocket();
     } finally {
@@ -85,7 +97,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/signup/verify", { email, otp });
       set({ authUser: res.data });
-      localStorage.setItem(SESSION_HINT_KEY, "true");
+      setSessionHint();
       toast.success("Account created successfully");
       get().connectSocket();
       return res.data;
@@ -102,7 +114,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post("/auth/login", data);
       set({ authUser: res.data });
-      localStorage.setItem(SESSION_HINT_KEY, "true");
+      setSessionHint();
       toast.success("Logged in successfully");
       get().connectSocket();
       return res.data;
@@ -122,7 +134,7 @@ export const useAuthStore = create((set, get) => ({
       toast.error(getErrorMessage(error, "Logout failed"));
     } finally {
       get().disconnectSocket();
-      localStorage.removeItem(SESSION_HINT_KEY);
+      removeSessionHint();
       set({ authUser: null, onlineUsers: [] });
     }
   },

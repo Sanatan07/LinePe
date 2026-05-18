@@ -1,3 +1,7 @@
+"use client";
+
+/* eslint-disable @next/next/no-img-element */
+
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Check, CheckCheck, Clock3, RotateCcw } from "lucide-react";
 
@@ -63,12 +67,12 @@ const getStatusLabel = ({ message, conversation, status }) => {
 const MAX_COLLAPSED_MESSAGE_LENGTH = 50;
 
 const MessageStatusIndicator = ({ message, conversation, status, errorMessage, onRetry }) => {
-  const iconClass = "size-3.5";
+  const iconClass = "size-3.5 shrink-0";
   const label = getStatusLabel({ message, conversation, status });
 
   if (status === "pending") {
     return (
-      <span className="inline-flex items-center text-base-content/50" title={label} aria-label={label}>
+      <span className="inline-flex items-center opacity-40" title={label} aria-label={label}>
         <Clock3 className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -76,7 +80,7 @@ const MessageStatusIndicator = ({ message, conversation, status, errorMessage, o
 
   if (status === "sent") {
     return (
-      <span className="inline-flex items-center text-base-content/60" title={label} aria-label={label}>
+      <span className="inline-flex items-center opacity-60" title={label} aria-label={label}>
         <Check className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -84,7 +88,7 @@ const MessageStatusIndicator = ({ message, conversation, status, errorMessage, o
 
   if (status === "delivered") {
     return (
-      <span className="inline-flex items-center text-base-content/60" title={label} aria-label={label}>
+      <span className="inline-flex items-center opacity-70" title={label} aria-label={label}>
         <CheckCheck className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -92,7 +96,7 @@ const MessageStatusIndicator = ({ message, conversation, status, errorMessage, o
 
   if (status === "read") {
     return (
-      <span className="inline-flex items-center text-primary" title={label} aria-label={label}>
+      <span className="inline-flex items-center text-sky-300" title={label} aria-label={label}>
         <CheckCheck className={iconClass} aria-hidden="true" />
       </span>
     );
@@ -102,13 +106,13 @@ const MessageStatusIndicator = ({ message, conversation, status, errorMessage, o
     return (
       <button
         type="button"
-        className="inline-flex items-center gap-0.5 text-error hover:text-error/80"
+        className="inline-flex items-center gap-0.5 opacity-80 hover:opacity-100 text-error"
         title={errorMessage || label}
         aria-label={label}
         onClick={onRetry}
       >
         <AlertCircle className={iconClass} aria-hidden="true" />
-        <RotateCcw className="size-3" aria-hidden="true" />
+        <RotateCcw className="size-3 shrink-0" aria-hidden="true" />
       </button>
     );
   }
@@ -293,9 +297,6 @@ const ChatContainer = () => {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-        {typingUsers.length > 0 && (
-          <p className="text-sm text-gray-400">Typing...</p>
-        )}
         {isLoadingOlderMessages && (
           <div className="text-center text-xs text-base-content/50">Loading older messages...</div>
         )}
@@ -329,24 +330,6 @@ const ChatContainer = () => {
                     }
                     alt="profile pic"
                   />
-                </div>
-              </div>
-              <div className="chat-header mb-1">
-                <div className="flex items-center gap-1.5">
-                  <time className="text-xs opacity-50 ml-1">
-                    {formatMessageTime(message.createdAt)}
-                  </time>
-                  {isOwnMessage && (
-                    <span className="inline-flex items-center">
-                      <MessageStatusIndicator
-                        message={message}
-                        conversation={selectedConversation}
-                        status={status}
-                        errorMessage={message.errorMessage}
-                        onRetry={() => retryPendingMessage(message.clientMessageId)}
-                      />
-                    </span>
-                  )}
                 </div>
               </div>
               <div className="chat-bubble flex flex-col max-w-[min(78vw,28rem)] whitespace-pre-wrap break-words overflow-hidden">
@@ -387,10 +370,33 @@ const ChatContainer = () => {
                     )}
                   </p>
                 )}
+
+                {/* Time + status — WhatsApp-style bottom row */}
+                <div className={`flex items-center gap-1 mt-1.5 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                  <time className="text-[10px] leading-none opacity-60">
+                    {formatMessageTime(message.createdAt)}
+                  </time>
+                  {isOwnMessage && (
+                    <MessageStatusIndicator
+                      message={message}
+                      conversation={selectedConversation}
+                      status={status}
+                      errorMessage={message.errorMessage}
+                      onRetry={() => retryPendingMessage(message.clientMessageId)}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           );
         })}
+        {(typingUsers || []).includes(String(selectedConversation?.participant?._id || "")) && (
+          <div className="chat chat-start">
+            <div className="chat-bubble chat-bubble-base-200 text-sm text-base-content/60 py-2 px-3">
+              Typing...
+            </div>
+          </div>
+        )}
         <div ref={messageEndRef} />
       </div>
 

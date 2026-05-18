@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+"use client";
+
+/* eslint-disable @next/next/no-img-element */
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
-import { Image, RefreshCw, Send, X } from "lucide-react";
+import { Image as ImageIcon, RefreshCw, Send, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore";
 import { SOCKET_EVENTS } from "../constants/socket.events";
@@ -36,11 +40,11 @@ const MessageInput = () => {
   const { socket } = useAuthStore();
   const typingStopTimeoutRef = useRef(null);
 
-  const emitTypingStop = () => {
+  const emitTypingStop = useCallback(() => {
     const conversationId = selectedConversation?._id;
     if (!socket?.connected || !conversationId) return;
     socket.emit(SOCKET_EVENTS.TYPING_STOP, { conversationId });
-  };
+  }, [selectedConversation?._id, socket]);
 
   const handleTyping = (e) => {
     const next = sanitizePlainText(e.target.value).slice(0, MAX_MESSAGE_LENGTH);
@@ -67,7 +71,7 @@ const MessageInput = () => {
       if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
       emitTypingStop();
     };
-  }, [selectedConversation?._id, socket?.id]);
+  }, [emitTypingStop]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -255,7 +259,7 @@ const MessageInput = () => {
                      ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
             onClick={() => fileInputRef.current?.click()}
           >
-            <Image size={20} />
+            <ImageIcon size={20} />
           </button>
         </div>
         <button

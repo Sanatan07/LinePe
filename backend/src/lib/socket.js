@@ -247,6 +247,7 @@ io.on("connection", (socket) => {
           conversationId,
           status: "delivered",
           deliveredAt: deliveredAt.toISOString(),
+          deliveredBy: String(userId),
           messageIds,
         });
       });
