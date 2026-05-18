@@ -201,6 +201,60 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED_BATCH, async (payload = {}) => {
+    try {
+      const conversationId = String(payload?.conversationId || "");
+      const rawIds = Array.isArray(payload?.messageIds) ? payload.messageIds.filter(Boolean) : [];
+      if (!conversationId || rawIds.length === 0) return;
+
+      const conversation = await Conversation.findOne({
+        _id: conversationId,
+        kind: { $ne: "group" },
+        participants: userId,
+      }).select("_id kind participants");
+
+      if (!conversation) return;
+
+      const messages = await Message.find({
+        _id: { $in: rawIds },
+        conversationId,
+        senderId: { $ne: userId },
+        receiverId: userId,
+        "deliveredTo.user": { $ne: userId },
+        status: { $in: ["sent", "delivered"] },
+      });
+
+      if (messages.length === 0) return;
+
+      const deliveredAt = new Date();
+      await Promise.all(
+        messages.map((message) => {
+          message.deliveredTo.push({ user: userId, deliveredAt });
+          applyMessageLifecycleStatus(message);
+          return message.save();
+        })
+      );
+
+      const bySender = new Map();
+      messages.forEach((message) => {
+        const senderId = String(message.senderId);
+        if (!bySender.has(senderId)) bySender.set(senderId, []);
+        bySender.get(senderId).push(message._id);
+      });
+
+      bySender.forEach((messageIds, senderId) => {
+        emitMessageEvent(senderId, SOCKET_EVENTS.MESSAGE_STATUS_UPDATE, {
+          conversationId,
+          status: "delivered",
+          deliveredAt: deliveredAt.toISOString(),
+          messageIds,
+        });
+      });
+    } catch (error) {
+      logger.error("socket.message_delivered_batch.failed", { error, socketId: socket.id, userId });
+    }
+  });
+
   const handleConversationRead = async (payload = {}) => {
     try {
       const conversationId = String(payload?.conversationId || "");

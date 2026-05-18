@@ -334,14 +334,22 @@ export const useChatStore = create((set, get) => ({
     const authUserId = getUserId(useAuthStore.getState().authUser);
     if (!socket?.connected || !authUserId || !Array.isArray(messagesToConfirm)) return;
 
+    const byConversation = new Map();
     messagesToConfirm.forEach((message) => {
       const conversationId = getConversationId(message?.conversationId);
-      if (!conversationId || !shouldConfirmDelivery(message, authUserId)) return;
+      const messageId = getMessageId(message);
+      if (!conversationId || !messageId || !shouldConfirmDelivery(message, authUserId)) return;
 
-      socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
-        messageId: getMessageId(message),
-        conversationId,
-      });
+      if (!byConversation.has(conversationId)) byConversation.set(conversationId, []);
+      byConversation.get(conversationId).push(messageId);
+    });
+
+    byConversation.forEach((messageIds, conversationId) => {
+      if (messageIds.length === 1) {
+        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED, { messageId: messageIds[0], conversationId });
+      } else {
+        socket.emit(SOCKET_EVENTS.MESSAGE_DELIVERED_BATCH, { conversationId, messageIds });
+      }
     });
   },
 
@@ -793,6 +801,18 @@ export const useChatStore = create((set, get) => ({
           messageIds,
           readerId,
           readAt,
+        });
+        return;
+      }
+
+      if (status === "delivered" && messageIds && messageIds.length > 0) {
+        messageIds.forEach((messageId) => {
+          get().markMessageAsDelivered({
+            conversationId: receipt?.conversationId,
+            messageId,
+            status,
+            deliveredAt: receipt?.deliveredAt,
+          });
         });
         return;
       }
