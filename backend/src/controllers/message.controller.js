@@ -21,24 +21,31 @@ const isValidImagePayload = (image) => typeof image === "string" && image.starts
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
 
+const VALID_ATTACHMENT_TYPES = new Set(["image", "video", "document"]);
+
+const getAttachmentCategory = (mimetype = "") => {
+  if (mimetype.startsWith("image/")) return "image";
+  if (mimetype.startsWith("video/")) return "video";
+  return "document";
+};
+
 const isValidAttachmentPayload = (attachment) => {
   if (!attachment || typeof attachment !== "object") return false;
   if (!isNonEmptyString(attachment.url)) return false;
-  if (attachment.type !== "image") return false;
-  if (!isNonEmptyString(attachment.mimeType) || !attachment.mimeType.startsWith("image/")) return false;
+  if (!VALID_ATTACHMENT_TYPES.has(attachment.type)) return false;
+  if (!isNonEmptyString(attachment.mimeType)) return false;
   if (typeof attachment.sizeBytes !== "number" || attachment.sizeBytes <= 0) return false;
   const allowHttp = process.env.NODE_ENV !== "production";
   if (!isSafeHttpUrl(attachment.url, { allowHttp })) return false;
   return true;
 };
 
-const uploadImageBufferToCloudinary = (buffer) =>
+const uploadBufferToCloudinary = (buffer, resourceType = "image") =>
   new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream({ resource_type: "image" }, (error, result) => {
+    const stream = cloudinary.uploader.upload_stream({ resource_type: resourceType }, (error, result) => {
       if (error) return reject(error);
       resolve(result);
     });
-
     stream.end(buffer);
   });
 
@@ -95,7 +102,7 @@ const buildMessagePayload = async ({
     attachmentList.forEach((attachment) => {
       nextAttachments.push({
         url: attachment.url.trim(),
-        type: "image",
+        type: attachment.type,
         mimeType: attachment.mimeType.trim(),
         sizeBytes: attachment.sizeBytes,
         width: typeof attachment.width === "number" ? attachment.width : null,
@@ -332,7 +339,7 @@ export const sendMessage = async (req, res) => {
       attachmentList.forEach((attachment) => {
         nextAttachments.push({
           url: attachment.url.trim(),
-          type: "image",
+          type: attachment.type,
           mimeType: attachment.mimeType.trim(),
           sizeBytes: attachment.sizeBytes,
           width: typeof attachment.width === "number" ? attachment.width : null,
@@ -644,6 +651,18 @@ export const markConversationAsRead = async (req, res) => {
   }
 };
 
+const FILE_SIZE_LIMITS = {
+  image: 5 * 1024 * 1024,
+  video: 50 * 1024 * 1024,
+  document: 25 * 1024 * 1024,
+};
+
+const CLOUDINARY_RESOURCE_TYPE = {
+  image: "image",
+  video: "video",
+  document: "raw",
+};
+
 export const uploadAttachment = async (req, res) => {
   try {
     const file = req.file;
@@ -657,16 +676,21 @@ export const uploadAttachment = async (req, res) => {
       return res.status(403).json({ message: "You cannot message this user" });
     }
 
-    if (!file.mimetype?.startsWith("image/")) {
-      return res.status(400).json({ message: "Only image uploads are supported" });
+    const category = getAttachmentCategory(file.mimetype);
+    const sizeLimit = FILE_SIZE_LIMITS[category];
+
+    if (file.size > sizeLimit) {
+      const limitMB = sizeLimit / (1024 * 1024);
+      return res.status(400).json({ message: `${category} files must be ${limitMB}MB or less` });
     }
 
-    const uploadResult = await uploadImageBufferToCloudinary(file.buffer);
+    const resourceType = CLOUDINARY_RESOURCE_TYPE[category];
+    const uploadResult = await uploadBufferToCloudinary(file.buffer, resourceType);
 
     res.status(201).json({
       attachment: {
         url: uploadResult.secure_url,
-        type: "image",
+        type: category,
         mimeType: file.mimetype,
         sizeBytes: file.size,
         width: uploadResult.width || null,
@@ -747,6 +771,67 @@ export const setBlockStatus = async (req, res) => {
     res.status(200).json({ userId: otherUserId, blocked: enabled });
   } catch (error) {
     console.log("Error in setBlockStatus controller: ", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const ALLOWED_EMOJIS = new Set(["❤️", "👍", "😂"]);
+
+export const reactToMessage = async (req, res) => {
+  try {
+    const { conversationId, messageId } = req.params;
+    const { emoji } = req.body;
+    const userId = req.user._id;
+
+    if (!ALLOWED_EMOJIS.has(emoji)) {
+      return res.status(400).json({ message: "Invalid emoji" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(conversationId) || !mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      kind: { $ne: "group" },
+      participants: userId,
+    }).select("_id participants");
+
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+
+    const message = await Message.findOne({ _id: messageId, conversationId });
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    const hadSameEmoji = message.reactions.some(
+      (r) => String(r.userId) === String(userId) && r.emoji === emoji
+    );
+
+    // Remove all existing reactions from this user (one reaction per user)
+    message.reactions = message.reactions.filter(
+      (r) => String(r.userId) !== String(userId)
+    );
+
+    // Add the new reaction unless the user tapped the same emoji (toggle off)
+    if (!hadSameEmoji) {
+      message.reactions.push({ userId, emoji });
+    }
+
+    await message.save();
+
+    const participantIds = (conversation.participants || []).map(String);
+    emitMessageEvent(participantIds, SOCKET_EVENTS.MESSAGE_REACTION, {
+      messageId: String(messageId),
+      conversationId: String(conversationId),
+      reactions: message.reactions,
+    });
+
+    res.status(200).json({ reactions: message.reactions });
+  } catch (error) {
+    console.log("Error in reactToMessage controller: ", error.message);
     res.status(500).json({ message: "Internal server error" });
   }
 };

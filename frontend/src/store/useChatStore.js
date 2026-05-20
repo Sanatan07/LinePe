@@ -879,6 +879,16 @@ export const useChatStore = create((set, get) => ({
       }));
     };
 
+    const handleReaction = (payload) => {
+      const messageId = String(payload?.messageId || "");
+      if (!messageId) return;
+      set((state) => ({
+        messages: (state.messages || []).map((msg) =>
+          String(msg._id) === messageId ? { ...msg, reactions: payload.reactions } : msg
+        ),
+      }));
+    };
+
     socket.off(SOCKET_EVENTS.MESSAGE_NEW);
     socket.off(SOCKET_EVENTS.MESSAGE_SENT);
     socket.off(SOCKET_EVENTS.MESSAGE_STATUS_UPDATE);
@@ -886,6 +896,7 @@ export const useChatStore = create((set, get) => ({
     socket.off(SOCKET_EVENTS.MESSAGE_READ_UPDATE);
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
+    socket.off(SOCKET_EVENTS.MESSAGE_REACTION);
 
     socket.on(SOCKET_EVENTS.MESSAGE_NEW, handleIncomingMessage);
     socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleIncomingMessage);
@@ -894,6 +905,7 @@ export const useChatStore = create((set, get) => ({
     socket.on(SOCKET_EVENTS.MESSAGE_READ_UPDATE, handleReadMessage);
     socket.on(SOCKET_EVENTS.TYPING_START, handleTypingStart);
     socket.on(SOCKET_EVENTS.TYPING_STOP, handleTypingStop);
+    socket.on(SOCKET_EVENTS.MESSAGE_REACTION, handleReaction);
     socket.on(SOCKET_EVENTS.MESSAGE_SYNC, () => {
       get().getConversations();
       if (get().selectedConversation?._id) {
@@ -927,6 +939,7 @@ export const useChatStore = create((set, get) => ({
     socket.off(SOCKET_EVENTS.TYPING_START);
     socket.off(SOCKET_EVENTS.TYPING_STOP);
     socket.off(SOCKET_EVENTS.MESSAGE_SYNC);
+    socket.off(SOCKET_EVENTS.MESSAGE_REACTION);
   },
 
   setSelectedConversation: (selectedConversation) => {
@@ -948,5 +961,21 @@ export const useChatStore = create((set, get) => ({
       chatSearchResults: [],
       highlightMessageId: null,
     });
+  },
+
+  reactToMessage: async ({ messageId, conversationId, emoji }) => {
+    try {
+      const res = await axiosInstance.post(
+        `/messages/conversation/${conversationId}/message/${messageId}/react`,
+        { emoji }
+      );
+      set((state) => ({
+        messages: (state.messages || []).map((msg) =>
+          String(msg._id) === messageId ? { ...msg, reactions: res.data.reactions } : msg
+        ),
+      }));
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to add reaction");
+    }
   },
 }));

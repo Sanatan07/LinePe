@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(git rm *)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(Get-ChildItem -Recurse \"c:\\\\Users\\\\admin\\\\Desktop\\\\LinePe\\\\backend\\\\src\" -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(xargs grep -l \"overflow\\\\|h-screen\\\\|flex-1\")"
     ]
   }
 }

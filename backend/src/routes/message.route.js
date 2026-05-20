@@ -11,6 +11,7 @@ import {
   sendMessageToConversation,
   setBlockStatus,
   uploadAttachment,
+  reactToMessage,
 } from "../controllers/message.controller.js";
 import {
   getConversations,
@@ -18,7 +19,7 @@ import {
   setConversationFlag,
   deleteDirectConversation,
 } from "../controllers/conversation.controller.js";
-import { imageUpload } from "../middleware/upload.middleware.js";
+import { imageUpload, fileUpload } from "../middleware/upload.middleware.js";
 
 const router = express.Router();
 
@@ -32,12 +33,13 @@ router.post("/block/:id", protectRoute, messageLimiter, setBlockStatus);
 router.get("/search/:id", protectRoute, messageLimiter, searchMessages);
 router.get("/conversation/:id", protectRoute, getMessagesByConversation);
 router.post("/conversation/send/:id", protectRoute, messageLimiter, sendMessageToConversation);
+router.post("/conversation/:conversationId/message/:messageId/react", protectRoute, messageLimiter, reactToMessage);
 router.post("/conversation/read/:id", protectRoute, messageLimiter, markConversationAsRead);
 router.post(
   "/upload",
   protectRoute,
   messageLimiter,
-  imageUpload.single("file"),
+  fileUpload.single("file"),
   uploadAttachment
 );
 router.get("/:id", protectRoute, getMessages);

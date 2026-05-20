@@ -78,7 +78,7 @@ export default async function ChatLayout({ children }) {
           initialAuthUser={currentUser}
           initialConversations={initialConversations}
         />
-        <div className="min-h-0 flex-1">{children}</div>
+        <div className="min-h-0 flex-1 flex flex-col overflow-hidden">{children}</div>
       </div>
     </section>
   );

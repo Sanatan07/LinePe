@@ -61,7 +61,7 @@ const messageSchema = new mongoose.Schema(
     attachments: [
       {
         url: { type: String, required: true },
-        type: { type: String, enum: ["image"], required: true },
+        type: { type: String, enum: ["image", "video", "document"], required: true },
         mimeType: { type: String, required: true },
         sizeBytes: { type: Number, required: true },
         width: { type: Number, default: null },
@@ -88,6 +88,16 @@ const messageSchema = new mongoose.Schema(
     },
     readBy: {
       type: [messageReadSchema],
+      default: [],
+    },
+    reactions: {
+      type: [
+        {
+          userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+          emoji: { type: String, required: true },
+          _id: false,
+        },
+      ],
       default: [],
     },
   },

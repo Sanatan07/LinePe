@@ -15,4 +15,5 @@ export const SOCKET_EVENTS = {
   CONVERSATION_LEAVE: "conversation:leave",
   TYPING_START: "typing:start",
   TYPING_STOP: "typing:stop",
+  MESSAGE_REACTION: "message:reaction",
 };

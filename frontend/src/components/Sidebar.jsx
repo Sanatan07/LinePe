@@ -131,7 +131,7 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
         </div>
       </div>
 
-      <div className="overflow-y-auto w-full py-3">
+      <div className="flex-1 min-h-0 overflow-y-auto w-full py-3">
         {filteredConversations.map((conversation) => {
           const participant = conversation.participant;
           const title = participant?.fullName || "Chat";
