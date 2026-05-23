@@ -5,7 +5,15 @@
       "Bash(git mv *)",
       "Bash(Get-ChildItem -Recurse \"c:\\\\Users\\\\admin\\\\Desktop\\\\LinePe\\\\backend\\\\src\" -File)",
       "Bash(Select-Object FullName)",
-      "Bash(xargs grep -l \"overflow\\\\|h-screen\\\\|flex-1\")"
+      "Bash(xargs grep -l \"overflow\\\\|h-screen\\\\|flex-1\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\admin\\\\Desktop\\\\LinePe\" -Recurse -File)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\admin\\\\Desktop\\\\LinePe\\\\frontend\\\\src\\\\app\\\\reset-password\\\\[token]\")",
+      "Bash(node -e \"const p = require\\('c:/Users/admin/Desktop/LinePe/frontend/node_modules/next/package.json'\\); console.log\\(p.version\\)\")",
+      "Bash(mkdir -p \"c:\\\\Users\\\\admin\\\\Desktop\\\\LinePe\\\\frontend\\\\src\\\\app\\\\api\\\\auth\\\\verify-email\\\\[token]\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\admin\\Desktop\\LinePe\\frontend\\src\\app\\reset-password",
+      "c:\\Users\\admin\\Desktop\\LinePe\\frontend\\src\\app\\api\\auth\\verify-email"
     ]
   }
 }

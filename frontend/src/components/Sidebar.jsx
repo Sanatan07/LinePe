@@ -16,6 +16,8 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
     getConversations,
     conversations,
     searchResults,
+    searchResultsHasMore,
+    isLoadingMoreSearchResults,
     selectedConversation,
     setSelectedConversation,
     isConversationsLoading,
@@ -23,6 +25,7 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
     isOpeningConversation,
     isSendingInvite,
     searchUsers,
+    loadMoreSearchUsers,
     clearUserSearch,
     sendInvite,
     openConversationFromUser,
@@ -386,6 +389,19 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                         </span>
                       </button>
                     ))}
+
+                  {!isUserSearchLoading && searchResultsHasMore && (
+                    <div className="p-2 border-t border-base-300">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm w-full"
+                        disabled={isLoadingMoreSearchResults}
+                        onClick={() => loadMoreSearchUsers(newChatQuery.trim())}
+                      >
+                        {isLoadingMoreSearchResults ? "Loading..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -451,6 +467,19 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                         </span>
                       </button>
                     ))}
+
+                  {!isUserSearchLoading && searchResultsHasMore && (
+                    <div className="p-2 border-t border-base-300">
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm w-full"
+                        disabled={isLoadingMoreSearchResults}
+                        onClick={() => loadMoreSearchUsers(newChatQuery.trim())}
+                      >
+                        {isLoadingMoreSearchResults ? "Loading..." : "Load more"}
+                      </button>
+                    </div>
+                  )}
 
                   {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
                     <div className="p-4 space-y-3">

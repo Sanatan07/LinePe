@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import ChatContainer from "@/components/ChatContainer";
 import NoChatSelected from "@/components/NoChatSelected";
 import { SOCKET_EVENTS } from "@/constants/socket.events";
+import { requestNotificationPermission } from "@/lib/notifications";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useChatStore } from "@/store/useChatStore";
 
@@ -46,6 +47,11 @@ export default function ChatMain() {
     setSelectedConversation(conv);
     router.replace("/chat", { scroll: false });
   }, [conversations, searchParams, setSelectedConversation, router]);
+
+  useEffect(() => {
+    if (!authUser) return;
+    requestNotificationPermission();
+  }, [authUser]);
 
   useEffect(() => {
     if (!authUser || !socket) return undefined;

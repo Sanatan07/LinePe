@@ -49,6 +49,10 @@ export const searchUsers = async (req, res) => {
       return res.status(400).json({ message: "Search query is required" });
     }
 
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(20, Math.max(1, parseInt(req.query.limit, 10) || 10));
+    const skip = (page - 1) * limit;
+
     const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const normalizedPhone = normalizeIndianPhoneQuery(query);
 
@@ -68,11 +72,17 @@ export const searchUsers = async (req, res) => {
 
     const users = await User.find(mongoQuery)
       .select("_id fullName username profilePic lastSeen")
-      .limit(10);
+      .skip(skip)
+      .limit(limit + 1);
+
+    const hasMore = users.length > limit;
+    const results = hasMore ? users.slice(0, limit) : users;
 
     res.status(200).json({
       success: true,
-      results: users.map(formatDiscoverableUser),
+      results: results.map(formatDiscoverableUser),
+      hasMore,
+      page,
     });
   } catch (error) {
     console.log("Error in searchUsers controller:", error.message);

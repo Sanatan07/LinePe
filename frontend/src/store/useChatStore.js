@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 
 import { SOCKET_EVENTS } from "../constants/socket.events";
 import { axiosInstance } from "../lib/axios";
+import { showBrowserNotification } from "../lib/notifications";
 import { useAuthStore } from "./useAuthStore";
 
 const getMessageId = (message) => String(message?._id || message?.messageId || "");
@@ -164,6 +165,9 @@ export const useChatStore = create((set, get) => ({
   conversations: [],
   users: [],
   searchResults: [],
+  searchResultsHasMore: false,
+  searchResultsPage: 1,
+  isLoadingMoreSearchResults: false,
   selectedConversation: null,
   typingUsers: [],
   chatSearchResults: [],
@@ -485,18 +489,18 @@ export const useChatStore = create((set, get) => ({
     const trimmed = typeof query === "string" ? query.trim() : "";
 
     if (!trimmed) {
-      set({ searchResults: [] });
+      set({ searchResults: [], searchResultsHasMore: false, searchResultsPage: 1 });
       return [];
     }
 
     set({ isUserSearchLoading: true });
     try {
-      const res = await axiosInstance.get(`/users/search?q=${encodeURIComponent(trimmed)}`);
+      const res = await axiosInstance.get(`/users/search?q=${encodeURIComponent(trimmed)}&page=1`);
       const results = Array.isArray(res.data?.results) ? res.data.results : [];
-      set({ searchResults: results });
+      set({ searchResults: results, searchResultsHasMore: res.data?.hasMore ?? false, searchResultsPage: 1 });
       return results;
     } catch (error) {
-      set({ searchResults: [] });
+      set({ searchResults: [], searchResultsHasMore: false, searchResultsPage: 1 });
       toast.error(error?.response?.data?.message || "User search failed");
       return [];
     } finally {
@@ -504,8 +508,32 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  loadMoreSearchUsers: async (query) => {
+    const trimmed = typeof query === "string" ? query.trim() : "";
+    if (!trimmed) return;
+
+    const { searchResultsPage, isLoadingMoreSearchResults } = get();
+    if (isLoadingMoreSearchResults) return;
+
+    const nextPage = searchResultsPage + 1;
+    set({ isLoadingMoreSearchResults: true });
+    try {
+      const res = await axiosInstance.get(`/users/search?q=${encodeURIComponent(trimmed)}&page=${nextPage}`);
+      const newResults = Array.isArray(res.data?.results) ? res.data.results : [];
+      set((state) => ({
+        searchResults: [...state.searchResults, ...newResults],
+        searchResultsHasMore: res.data?.hasMore ?? false,
+        searchResultsPage: nextPage,
+      }));
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to load more results");
+    } finally {
+      set({ isLoadingMoreSearchResults: false });
+    }
+  },
+
   clearUserSearch: () => {
-    set({ searchResults: [], isUserSearchLoading: false });
+    set({ searchResults: [], isUserSearchLoading: false, searchResultsHasMore: false, searchResultsPage: 1 });
   },
 
   sendInvite: async (phoneNumber) => {
@@ -770,6 +798,27 @@ export const useChatStore = create((set, get) => ({
               isIncomingToMe && !isSelectedConversation ? Number(existing?.unreadCount || 0) + 1 : 0,
           }),
         }));
+      }
+
+      if (isIncomingToMe && !isSelectedConversation) {
+        const senderName =
+          existing?.participant?.fullName ||
+          existing?.participant?.username ||
+          "New message";
+        const rawText = typeof incomingMessage.text === "string" ? incomingMessage.text.trim() : "";
+        const preview = rawText
+          ? rawText.slice(0, 60) + (rawText.length > 60 ? "…" : "")
+          : incomingMessage.image
+          ? "📷 Photo"
+          : incomingMessage.attachments?.length
+          ? "📎 Attachment"
+          : "New message";
+
+        toast(`${senderName}: ${preview}`, { icon: "💬", duration: 4000 });
+        showBrowserNotification(senderName, preview, {
+          icon: existing?.participant?.profilePic,
+          tag: incomingConversationId,
+        });
       }
 
       if (isSelectedConversation) {

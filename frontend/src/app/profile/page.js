@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getAuthSession } from "@/lib/server-auth";
+import ResendVerificationButton from "./ResendVerificationButton";
 
 export const dynamic = "force-dynamic";
 
@@ -68,8 +69,9 @@ function Field({ label, value, children }) {
   );
 }
 
-export default async function ProfilePage() {
+export default async function ProfilePage({ searchParams }) {
   const { user, canRefresh } = await getAuthSession();
+  const { verified } = await searchParams;
 
   if (!user) {
     if (canRefresh) {
@@ -81,6 +83,16 @@ export default async function ProfilePage() {
 
   return (
     <main className="min-h-screen bg-[#f4f6f2] text-stone-950">
+      {verified === "1" && (
+        <div className="bg-emerald-600 px-5 py-3 text-center text-sm font-semibold text-white">
+          Your email has been verified successfully.
+        </div>
+      )}
+      {verified === "0" && (
+        <div className="bg-rose-600 px-5 py-3 text-center text-sm font-semibold text-white">
+          The verification link is invalid or has expired. Request a new one below.
+        </div>
+      )}
       <header className="border-b border-stone-200 bg-white">
         <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-6">
           <Link href="/" className="flex items-center gap-3" aria-label="LinePe home">
@@ -158,6 +170,7 @@ export default async function ProfilePage() {
             <Field label="Email address">
               <span className="mr-3">{user.email}</span>
               <StatusBadge verified={user.isEmailVerified} />
+              {!user.isEmailVerified && <ResendVerificationButton />}
             </Field>
             <Field label="Phone number">
               <span className="mr-3">{user.phoneNumber || "Not available"}</span>

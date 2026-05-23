@@ -810,11 +810,38 @@ export const refreshTokenController = async (req, res, next) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const session = Array.isArray(user.refreshSessions)
-      ? user.refreshSessions.find(
-          (s) => s && s.tokenId === decoded.tokenId && !s.revokedAt && (!s.expiresAt || s.expiresAt > new Date())
-        )
-      : null;
+    const sessions = Array.isArray(user.refreshSessions) ? user.refreshSessions : [];
+
+    // Find the session by tokenId regardless of revocation status so we can detect reuse.
+    const sessionById = sessions.find((s) => s?.tokenId === decoded.tokenId);
+
+    if (sessionById?.revokedAt) {
+      // A previously rotated token is being replayed — possible theft.
+      // Revoke every active session and bump tokenVersion to invalidate all access tokens.
+      const now = new Date();
+      user.refreshSessions = sessions.map((s) =>
+        s.revokedAt ? s : { ...s.toObject?.() ?? s, revokedAt: now }
+      );
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
+      await user.save();
+      clearAuthCookies(res);
+      recordAuditLog({
+        req,
+        type: "auth",
+        action: "refresh_token_reuse",
+        status: "failure",
+        userId: user._id,
+        email: user.email,
+        message: "Refresh token reuse detected — all sessions revoked",
+        statusCode: 401,
+      });
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const session =
+      sessionById && !sessionById.revokedAt && (!sessionById.expiresAt || sessionById.expiresAt > new Date())
+        ? sessionById
+        : null;
 
     if (!session || session.tokenHash !== sha256(refreshToken)) {
       clearAuthCookies(res);

@@ -88,6 +88,9 @@ export default function LoginPageClient() {
             <div className="form-control">
               <label className="label" htmlFor="password">
                 <span className="text-stone-700 font-medium text-sm">Password</span>
+                <Link href="/forgot-password" className="link link-primary text-xs">
+                  Forgot password?
+                </Link>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
