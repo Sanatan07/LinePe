@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+This frontend is a React + Vite app.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and start the dev server:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the Vite URL shown in the terminal, usually [http://localhost:5173](http://localhost:5173).
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set these for local development and Vercel deployment:
 
-## Learn More
+```env
+VITE_API_URL=https://your-backend.example.com/api
+VITE_API_ORIGIN=https://your-backend.example.com
+VITE_SOCKET_URL=https://your-backend.example.com
+```
 
-To learn more about Next.js, take a look at the following resources:
+For local development, the defaults point to `http://localhost:5000`, but production builds must use the deployed backend URL. If these are left unset on Vercel, the frontend will fall back to `localhost:5000` and login will fail from the public site.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Build
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run build
+npm run preview
+```
 
-## Deploy on Vercel
+## Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Use Vercel for the frontend and Render or another host for the backend. Make sure the backend allowlist includes the exact frontend origin, for example:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```env
+CLIENT_URL=https://line-pe.vercel.app
+CLIENT_URLS=https://line-pe.vercel.app
+```
+
+Also make sure the frontend env values point to the public backend URL, not `localhost`.
