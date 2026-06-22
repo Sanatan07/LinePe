@@ -6,9 +6,9 @@ metadata:
 data:
   NODE_ENV: "production"
   PORT: "5000"
-  CLIENT_URL: "https://linepe.example.com"
-  CLIENT_URLS: "https://linepe.example.com"
+  CLIENT_URL: "https://line-pe.vercel.app"
+  CLIENT_URLS: "https://line-pe.vercel.app"
   COOKIE_SAME_SITE: "none"
   COOKIE_SECURE: "true"
   REDIS_URL: "redis://redis:6379"
-  INVITE_BASE_URL: "https://linepe.example.com"
+  INVITE_BASE_URL: "https://line-pe.vercel.app"

@@ -249,6 +249,10 @@ If `REDIS_URL` is configured, Socket.IO uses the Redis adapter and Redis-backed 
 - Configure SMTP or Resend before enabling signup OTP emails.
 - Review and customize files in `k8s/` before deploying to a cluster.
 
+Current deployed frontend origin: `https://line-pe.vercel.app`
+
+Use that exact origin in `CLIENT_URL` and `CLIENT_URLS` when deploying the backend.
+
 ## Kubernetes
 
 The `k8s/` directory includes example manifests:
