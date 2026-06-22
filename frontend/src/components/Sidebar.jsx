@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
 import { useEffect, useMemo, useState } from "react";
 import { MessageSquarePlus, Pin, Search, Users } from "lucide-react";
 import toast from "react-hot-toast";
@@ -71,20 +69,25 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
     let list = Array.isArray(displayConversations) ? displayConversations : [];
 
     if (showOnlineOnly) {
-      list = list.filter((conversation) => onlineUsers.includes(conversation.participant?._id));
+      list = list.filter((conversation) =>
+        onlineUsers.includes(conversation.participant?._id),
+      );
     }
 
     if (q) {
       list = list.filter((conversation) => {
         const label = conversation.participant?.fullName;
-        return String(label || "").toLowerCase().includes(q);
+        return String(label || "")
+          .toLowerCase()
+          .includes(q);
       });
     }
 
     return list;
   }, [displayConversations, onlineUsers, search, showOnlineOnly]);
 
-  if (isConversationsLoading && displayConversations.length === 0) return <SidebarSkeleton />;
+  if (isConversationsLoading && displayConversations.length === 0)
+    return <SidebarSkeleton />;
 
   return (
     <aside className="h-full w-20 lg:w-72 border-r border-base-300 flex flex-col transition-all duration-200">
@@ -130,7 +133,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
             />
             <span className="text-sm">Show online only</span>
           </label>
-          <span className="text-xs text-zinc-500">({onlineUsers.length - 1} online)</span>
+          <span className="text-xs text-zinc-500">
+            ({onlineUsers.length - 1} online)
+          </span>
         </div>
       </div>
 
@@ -143,7 +148,8 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
           const unreadCount = Number(conversation.unreadCount || 0);
           const previewText =
             conversation.lastMessage?.text ||
-            (conversation.lastMessage?.image || conversation.lastMessage?.attachments?.length
+            (conversation.lastMessage?.image ||
+            conversation.lastMessage?.attachments?.length
               ? "Photo"
               : "No messages yet");
 
@@ -175,7 +181,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                 <div className="flex items-center justify-between gap-2">
                   <div className="font-medium truncate">{title}</div>
                   <div className="flex items-center gap-2">
-                    {conversation.pinned && <Pin className="size-4 text-base-content/50" />}
+                    {conversation.pinned && (
+                      <Pin className="size-4 text-base-content/50" />
+                    )}
                     {conversation.lastActivityAt && (
                       <div className="text-xs text-zinc-500 whitespace-nowrap">
                         {formatMessageTime(conversation.lastActivityAt)}
@@ -188,7 +196,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                     )}
                   </div>
                 </div>
-                <div className="text-sm text-zinc-400 truncate">{previewText}</div>
+                <div className="text-sm text-zinc-400 truncate">
+                  {previewText}
+                </div>
               </div>
             </button>
           );
@@ -207,7 +217,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">New chat</h3>
-                <p className="text-sm text-base-content/60">Search by username and open a chat instantly.</p>
+                <p className="text-sm text-base-content/60">
+                  Search by username and open a chat instantly.
+                </p>
               </div>
               <button
                 type="button"
@@ -273,7 +285,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
 
                 <div className="border border-base-300 rounded-md max-h-80 overflow-auto">
                   {isUserSearchLoading && (
-                    <div className="p-4 text-sm text-base-content/60">Searching...</div>
+                    <div className="p-4 text-sm text-base-content/60">
+                      Searching...
+                    </div>
                   )}
 
                   {!isUserSearchLoading && !newChatQuery.trim() && (
@@ -282,78 +296,102 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                     </div>
                   )}
 
-                  {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
-                    <div className="p-4 space-y-3">
-                      {inviteResult && inviteResult.query === lastResolvedQuery ? (
-                        <div className="space-y-3">
-                          <div className="text-sm font-semibold text-success">Invite created!</div>
-                          <div className="text-sm text-base-content/60">
-                            Share this link with the person you want to invite:
+                  {!isUserSearchLoading &&
+                    newChatQuery.trim() &&
+                    searchResults.length === 0 && (
+                      <div className="p-4 space-y-3">
+                        {inviteResult &&
+                        inviteResult.query === lastResolvedQuery ? (
+                          <div className="space-y-3">
+                            <div className="text-sm font-semibold text-success">
+                              Invite created!
+                            </div>
+                            <div className="text-sm text-base-content/60">
+                              Share this link with the person you want to
+                              invite:
+                            </div>
+                            <div className="flex items-center gap-2 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+                              <span className="min-w-0 flex-1 truncate font-mono text-xs text-base-content/80">
+                                {inviteResult.url}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-xs btn-ghost shrink-0"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    inviteResult.url,
+                                  );
+                                  toast.success("Link copied!");
+                                }}
+                              >
+                                Copy
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 rounded-md border border-base-300 bg-base-200 px-3 py-2">
-                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-base-content/80">
-                              {inviteResult.url}
-                            </span>
-                            <button
-                              type="button"
-                              className="btn btn-xs btn-ghost shrink-0"
-                              onClick={() => {
-                                navigator.clipboard.writeText(inviteResult.url);
-                                toast.success("Link copied!");
-                              }}
-                            >
-                              Copy
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="text-sm text-base-content/60">No user found.</div>
-                          <div className="text-sm text-base-content/60">
-                            Invite someone by email:
-                          </div>
-                          <div className="flex gap-2">
-                            <input
-                              type="email"
-                              id="usernameTabEmailInvite"
-                              className="input input-bordered input-sm flex-1"
-                              placeholder="friend@example.com"
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm"
-                              disabled={isSendingInvite}
-                              onClick={async () => {
-                                const emailInput = document.getElementById("usernameTabEmailInvite");
-                                const email = emailInput?.value?.trim() || "";
-                                if (!email) return toast.error("Enter an email address");
-                                const result = await sendInvite(email);
-                                if (!result) return;
-                                if (result.alreadyOnPlatform && result.user) {
-                                  const conversation = await openConversationFromUser(result.user);
-                                  if (conversation) {
-                                    setIsNewChatModalOpen(false);
-                                    setNewChatQuery("");
-                                    setLastResolvedQuery("");
-                                    setInviteResult(null);
-                                    clearUserSearch();
+                        ) : (
+                          <>
+                            <div className="text-sm text-base-content/60">
+                              No user found.
+                            </div>
+                            <div className="text-sm text-base-content/60">
+                              Invite someone by email:
+                            </div>
+                            <div className="flex gap-2">
+                              <input
+                                type="email"
+                                id="usernameTabEmailInvite"
+                                className="input input-bordered input-sm flex-1"
+                                placeholder="friend@example.com"
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                disabled={isSendingInvite}
+                                onClick={async () => {
+                                  const emailInput = document.getElementById(
+                                    "usernameTabEmailInvite",
+                                  );
+                                  const email = emailInput?.value?.trim() || "";
+                                  if (!email)
+                                    return toast.error(
+                                      "Enter an email address",
+                                    );
+                                  const result = await sendInvite(email);
+                                  if (!result) return;
+                                  if (result.alreadyOnPlatform && result.user) {
+                                    const conversation =
+                                      await openConversationFromUser(
+                                        result.user,
+                                      );
+                                    if (conversation) {
+                                      setIsNewChatModalOpen(false);
+                                      setNewChatQuery("");
+                                      setLastResolvedQuery("");
+                                      setInviteResult(null);
+                                      clearUserSearch();
+                                    }
+                                    return;
                                   }
-                                  return;
-                                }
-                                setInviteResult({
-                                  query: lastResolvedQuery,
-                                  url: result.invite?.inviteUrl || result.invite?.inviteLink || "",
-                                });
-                                toast.success(result.message || "Invite created successfully");
-                              }}
-                            >
-                              {isSendingInvite ? "Sending..." : "Invite"}
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                                  setInviteResult({
+                                    query: lastResolvedQuery,
+                                    url:
+                                      result.invite?.inviteUrl ||
+                                      result.invite?.inviteLink ||
+                                      "",
+                                  });
+                                  toast.success(
+                                    result.message ||
+                                      "Invite created successfully",
+                                  );
+                                }}
+                              >
+                                {isSendingInvite ? "Sending..." : "Invite"}
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
 
                   {!isUserSearchLoading &&
                     searchResults.map((user) => (
@@ -362,7 +400,8 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                         type="button"
                         className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-base-200 transition-colors"
                         onClick={async () => {
-                          const conversation = await openConversationFromUser(user);
+                          const conversation =
+                            await openConversationFromUser(user);
                           if (conversation) {
                             setIsNewChatModalOpen(false);
                             setNewChatQuery("");
@@ -379,7 +418,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                           className="size-12 rounded-full object-cover"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{user.fullName}</div>
+                          <div className="font-medium truncate">
+                            {user.fullName}
+                          </div>
                           <div className="text-sm text-base-content/60 truncate">
                             @{user.username || "no-username"}
                           </div>
@@ -398,7 +439,9 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                         disabled={isLoadingMoreSearchResults}
                         onClick={() => loadMoreSearchUsers(newChatQuery.trim())}
                       >
-                        {isLoadingMoreSearchResults ? "Loading..." : "Load more"}
+                        {isLoadingMoreSearchResults
+                          ? "Loading..."
+                          : "Load more"}
                       </button>
                     </div>
                   )}
@@ -424,23 +467,28 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
 
                 <div className="border border-base-300 rounded-md max-h-80 overflow-auto">
                   {isUserSearchLoading && (
-                    <div className="p-4 text-sm text-base-content/60">Searching...</div>
+                    <div className="p-4 text-sm text-base-content/60">
+                      Searching...
+                    </div>
                   )}
 
                   {!isUserSearchLoading && !newChatQuery.trim() && (
                     <div className="p-4 text-sm text-base-content/60">
-                      Enter a `+91` phone number to message someone or send an invite.
+                      Enter a `+91` phone number to message someone or send an
+                      invite.
                     </div>
                   )}
 
-                  {!isUserSearchLoading && searchResults.length > 0 &&
+                  {!isUserSearchLoading &&
+                    searchResults.length > 0 &&
                     searchResults.map((user) => (
                       <button
                         key={user._id}
                         type="button"
                         className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-base-200 transition-colors"
                         onClick={async () => {
-                          const conversation = await openConversationFromUser(user);
+                          const conversation =
+                            await openConversationFromUser(user);
                           if (conversation) {
                             setIsNewChatModalOpen(false);
                             setNewChatQuery("");
@@ -457,9 +505,13 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                           className="size-12 rounded-full object-cover"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium truncate">{user.fullName}</div>
+                          <div className="font-medium truncate">
+                            {user.fullName}
+                          </div>
                           <div className="text-sm text-base-content/60 truncate">
-                            {user.username ? `@${user.username}` : "LinePe user"}
+                            {user.username
+                              ? `@${user.username}`
+                              : "LinePe user"}
                           </div>
                         </div>
                         <span className="btn btn-sm btn-outline">
@@ -476,73 +528,93 @@ const Sidebar = ({ initialConversations = [], initialAuthUser = null }) => {
                         disabled={isLoadingMoreSearchResults}
                         onClick={() => loadMoreSearchUsers(newChatQuery.trim())}
                       >
-                        {isLoadingMoreSearchResults ? "Loading..." : "Load more"}
+                        {isLoadingMoreSearchResults
+                          ? "Loading..."
+                          : "Load more"}
                       </button>
                     </div>
                   )}
 
-                  {!isUserSearchLoading && newChatQuery.trim() && searchResults.length === 0 && (
-                    <div className="p-4 space-y-3">
-                      {inviteResult && inviteResult.query === lastResolvedQuery ? (
-                        <div className="space-y-3">
-                          <div className="text-sm font-semibold text-success">Invite created!</div>
-                          <div className="text-sm text-base-content/60">
-                            Share this link with the person you want to invite:
+                  {!isUserSearchLoading &&
+                    newChatQuery.trim() &&
+                    searchResults.length === 0 && (
+                      <div className="p-4 space-y-3">
+                        {inviteResult &&
+                        inviteResult.query === lastResolvedQuery ? (
+                          <div className="space-y-3">
+                            <div className="text-sm font-semibold text-success">
+                              Invite created!
+                            </div>
+                            <div className="text-sm text-base-content/60">
+                              Share this link with the person you want to
+                              invite:
+                            </div>
+                            <div className="flex items-center gap-2 rounded-md border border-base-300 bg-base-200 px-3 py-2">
+                              <span className="min-w-0 flex-1 truncate font-mono text-xs text-base-content/80">
+                                {inviteResult.url}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn btn-xs btn-ghost shrink-0"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(
+                                    inviteResult.url,
+                                  );
+                                  toast.success("Link copied!");
+                                }}
+                              >
+                                Copy
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 rounded-md border border-base-300 bg-base-200 px-3 py-2">
-                            <span className="min-w-0 flex-1 truncate font-mono text-xs text-base-content/80">
-                              {inviteResult.url}
-                            </span>
+                        ) : (
+                          <>
+                            <div className="text-sm text-base-content/60">
+                              This phone number is not on LinePe yet.
+                            </div>
                             <button
                               type="button"
-                              className="btn btn-xs btn-ghost shrink-0"
-                              onClick={() => {
-                                navigator.clipboard.writeText(inviteResult.url);
-                                toast.success("Link copied!");
+                              className="btn btn-primary btn-sm"
+                              disabled={isSendingInvite}
+                              onClick={async () => {
+                                const result =
+                                  await sendInvite(lastResolvedQuery);
+                                if (!result) return;
+
+                                if (result.alreadyOnPlatform && result.user) {
+                                  const conversation =
+                                    await openConversationFromUser(result.user);
+                                  if (conversation) {
+                                    setIsNewChatModalOpen(false);
+                                    setNewChatQuery("");
+                                    setLastResolvedQuery("");
+                                    setInviteResult(null);
+                                    clearUserSearch();
+                                  }
+                                  return;
+                                }
+
+                                setInviteResult({
+                                  query: lastResolvedQuery,
+                                  url:
+                                    result.invite?.inviteUrl ||
+                                    result.invite?.inviteLink ||
+                                    "",
+                                });
+                                toast.success(
+                                  result.message ||
+                                    "Invite created successfully",
+                                );
                               }}
                             >
-                              Copy
+                              {isSendingInvite
+                                ? "Sending..."
+                                : "Invite to LinePe"}
                             </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="text-sm text-base-content/60">
-                            This phone number is not on LinePe yet.
-                          </div>
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            disabled={isSendingInvite}
-                            onClick={async () => {
-                              const result = await sendInvite(lastResolvedQuery);
-                              if (!result) return;
-
-                              if (result.alreadyOnPlatform && result.user) {
-                                const conversation = await openConversationFromUser(result.user);
-                                if (conversation) {
-                                  setIsNewChatModalOpen(false);
-                                  setNewChatQuery("");
-                                  setLastResolvedQuery("");
-                                  setInviteResult(null);
-                                  clearUserSearch();
-                                }
-                                return;
-                              }
-
-                              setInviteResult({
-                                query: lastResolvedQuery,
-                                url: result.invite?.inviteUrl || result.invite?.inviteLink || "",
-                              });
-                              toast.success(result.message || "Invite created successfully");
-                            }}
-                          >
-                            {isSendingInvite ? "Sending..." : "Invite to LinePe"}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
+                          </>
+                        )}
+                      </div>
+                    )}
                 </div>
               </div>
             )}

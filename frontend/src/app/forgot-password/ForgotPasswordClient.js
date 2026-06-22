@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { Loader2, Mail, MessageSquare } from "lucide-react";
 
 import AuthImagePattern from "@/components/AuthImagePattern";
@@ -27,7 +27,9 @@ export default function ForgotPasswordClient() {
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <MessageSquare className="w-6 h-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mt-2 text-stone-950">Forgot password?</h1>
+              <h1 className="text-2xl font-bold mt-2 text-stone-950">
+                Forgot password?
+              </h1>
               <p className="text-stone-500">
                 {submitted
                   ? "Check your inbox for the reset link."
@@ -39,8 +41,8 @@ export default function ForgotPasswordClient() {
           {submitted ? (
             <div className="text-center space-y-4">
               <p className="text-stone-600 text-sm">
-                If that address is registered you&apos;ll receive an email within a minute. The link
-                expires in 15&nbsp;minutes.
+                If that address is registered you&apos;ll receive an email
+                within a minute. The link expires in 15&nbsp;minutes.
               </p>
               <Link href="/login" className="btn btn-primary w-full">
                 Back to sign in
@@ -50,7 +52,9 @@ export default function ForgotPasswordClient() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="form-control">
                 <label className="label" htmlFor="email">
-                  <span className="text-stone-700 font-medium text-sm">Email</span>
+                  <span className="text-stone-700 font-medium text-sm">
+                    Email
+                  </span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

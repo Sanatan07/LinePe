@@ -2,13 +2,15 @@ import axios from "axios";
 
 const getApiBaseUrl = () => {
   const explicitBaseUrl =
-    process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+    import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
 
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/+$/, "");
   }
 
-  const origin = (process.env.NEXT_PUBLIC_API_ORIGIN || "http://localhost:5000").replace(/\/+$/, "");
+  const origin = (
+    import.meta.env.VITE_API_ORIGIN || "http://localhost:5000"
+  ).replace(/\/+$/, "");
   return origin.endsWith("/api") ? origin : `${origin}/api`;
 };
 
@@ -32,7 +34,8 @@ axiosInstance.interceptors.response.use(
     if (
       status !== 401 ||
       originalRequest?._retry ||
-      (typeof window !== "undefined" && localStorage.getItem(SESSION_HINT_KEY) !== "true") ||
+      (typeof window !== "undefined" &&
+        localStorage.getItem(SESSION_HINT_KEY) !== "true") ||
       url.includes("/auth/login") ||
       url.includes("/auth/signup") ||
       url.includes("/auth/refresh-token")
@@ -57,5 +60,5 @@ axiosInstance.interceptors.response.use(
     } finally {
       refreshPromise = null;
     }
-  }
+  },
 );

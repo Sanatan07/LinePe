@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
 import {
   Archive,
   BellOff,
@@ -40,7 +38,10 @@ const ChatHeader = () => {
     : "Offline";
 
   const conversation = Array.isArray(conversations)
-    ? conversations.find((item) => String(item?._id || "") === String(selectedConversation?._id || ""))
+    ? conversations.find(
+        (item) =>
+          String(item?._id || "") === String(selectedConversation?._id || ""),
+      )
     : null;
 
   const title = participant?.fullName || "Chat";
@@ -79,7 +80,11 @@ const ChatHeader = () => {
                     })
                   }
                 >
-                  {conversation?.muted ? <BellRing className="size-4" /> : <BellOff className="size-4" />}
+                  {conversation?.muted ? (
+                    <BellRing className="size-4" />
+                  ) : (
+                    <BellOff className="size-4" />
+                  )}
                   {conversation?.muted ? "Unmute" : "Mute"}
                 </button>
               </li>
@@ -94,7 +99,11 @@ const ChatHeader = () => {
                     })
                   }
                 >
-                  {conversation?.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                  {conversation?.pinned ? (
+                    <PinOff className="size-4" />
+                  ) : (
+                    <Pin className="size-4" />
+                  )}
                   {conversation?.pinned ? "Unpin" : "Pin"}
                 </button>
               </li>
@@ -131,7 +140,9 @@ const ChatHeader = () => {
               <li>
                 <button
                   type="button"
-                  onClick={() => setBlockStatus({ userId: participant?._id, enabled: true })}
+                  onClick={() =>
+                    setBlockStatus({ userId: participant?._id, enabled: true })
+                  }
                 >
                   <Shield className="size-4" />
                   Block
@@ -142,7 +153,7 @@ const ChatHeader = () => {
                   type="button"
                   onClick={async () => {
                     const confirmed = window.confirm(
-                      "Delete this chat and all its messages permanently?"
+                      "Delete this chat and all its messages permanently?",
                     );
                     if (!confirmed) return;
                     await deleteConversation(selectedConversation);

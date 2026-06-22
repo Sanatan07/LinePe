@@ -8,8 +8,8 @@ import { axiosInstance } from "../lib/axios.js";
 const SESSION_HINT_KEY = "linepe.hasSession";
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ||
-  process.env.NEXT_PUBLIC_API_ORIGIN ||
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_ORIGIN ||
   "http://localhost:5000";
 
 const setSessionHint = () => {
@@ -30,7 +30,9 @@ const getErrorMessage = (error, fallbackMessage) =>
 const joinSelectedConversationRoom = async (socket) => {
   if (!socket?.connected) return;
   const { useChatStore } = await import("./useChatStore");
-  const selectedConversationId = String(useChatStore.getState().selectedConversation?._id || "");
+  const selectedConversationId = String(
+    useChatStore.getState().selectedConversation?._id || "",
+  );
   if (!selectedConversationId) return;
   socket.emit(SOCKET_EVENTS.CONVERSATION_JOIN, selectedConversationId);
 };
@@ -97,7 +99,10 @@ export const useAuthStore = create((set, get) => ({
   verifySignupOtp: async ({ email, otp }) => {
     set({ isSigningUp: true });
     try {
-      const res = await axiosInstance.post("/auth/signup/verify", { email, otp });
+      const res = await axiosInstance.post("/auth/signup/verify", {
+        email,
+        otp,
+      });
       set({ authUser: res.data });
       setSessionHint();
       toast.success("Account created successfully");
@@ -161,7 +166,10 @@ export const useAuthStore = create((set, get) => ({
     set({ isSendingPasswordReset: true });
     try {
       const res = await axiosInstance.post("/auth/forgot-password", { email });
-      toast.success(res.data?.message || "If that email is registered, a reset link has been sent.");
+      toast.success(
+        res.data?.message ||
+          "If that email is registered, a reset link has been sent.",
+      );
       return true;
     } catch (error) {
       toast.error(getErrorMessage(error, "Failed to send reset email"));
@@ -174,8 +182,12 @@ export const useAuthStore = create((set, get) => ({
   resetPassword: async (token, password) => {
     set({ isResettingPassword: true });
     try {
-      const res = await axiosInstance.post(`/auth/reset-password/${token}`, { password });
-      toast.success(res.data?.message || "Password reset successfully. Please sign in.");
+      const res = await axiosInstance.post(`/auth/reset-password/${token}`, {
+        password,
+      });
+      toast.success(
+        res.data?.message || "Password reset successfully. Please sign in.",
+      );
       return true;
     } catch (error) {
       toast.error(getErrorMessage(error, "Password reset failed"));

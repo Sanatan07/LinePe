@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import ChatContainer from "@/components/ChatContainer";
@@ -22,7 +22,7 @@ export default function ChatMain() {
   } = useChatStore();
 
   const searchParams = useSearchParams();
-  const router = useRouter();
+  const navigate = useNavigate();
   const inviteHandled = useRef(false);
 
   // Show toast immediately when landing from an accepted invite
@@ -30,7 +30,7 @@ export default function ChatMain() {
     if (searchParams.get("invite") === "accepted") {
       toast.success("Invite accepted! You're now connected.");
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-select the conversation once conversations are loaded
   useEffect(() => {
@@ -45,8 +45,8 @@ export default function ChatMain() {
 
     inviteHandled.current = true;
     setSelectedConversation(conv);
-    router.replace("/chat", { scroll: false });
-  }, [conversations, searchParams, setSelectedConversation, router]);
+    navigate("/chat", { replace: true });
+  }, [conversations, navigate, searchParams, setSelectedConversation]);
 
   useEffect(() => {
     if (!authUser) return;

@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare, User } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  MessageSquare,
+  User,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 import AuthImagePattern from "@/components/AuthImagePattern";
@@ -20,7 +27,7 @@ const getSafeNextPath = (value) => {
 };
 
 export default function SignUpPageClient() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const searchParams = useSearchParams();
   const inviteCode = searchParams.get("invite") || "";
   const nextPath = useMemo(
@@ -37,7 +44,8 @@ export default function SignUpPageClient() {
   const [otp, setOtp] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
 
-  const { authUser, checkAuth, signup, verifySignupOtp, isSigningUp } = useAuthStore();
+  const { authUser, checkAuth, signup, verifySignupOtp, isSigningUp } =
+    useAuthStore();
 
   useEffect(() => {
     checkAuth();
@@ -45,23 +53,34 @@ export default function SignUpPageClient() {
 
   useEffect(() => {
     if (!authUser) return;
-    router.replace(inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath);
-  }, [authUser, inviteCode, nextPath, router]);
+    navigate(
+      inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath,
+      { replace: true },
+    );
+  }, [authUser, inviteCode, nextPath, navigate]);
 
   const validateForm = () => {
     if (!formData.fullName.trim()) return toast.error("Full name is required");
     if (!formData.email.trim()) return toast.error("Email is required");
     if (!formData.username.trim()) return toast.error("Username is required");
-    if (!/\S+@\S+\.\S+/.test(formData.email)) return toast.error("Invalid email format");
+    if (!/\S+@\S+\.\S+/.test(formData.email))
+      return toast.error("Invalid email format");
     if (!/^[a-z0-9_.]+$/.test(formData.username.trim().toLowerCase())) {
-      return toast.error("Username can only contain lowercase letters, numbers, underscores, and periods");
+      return toast.error(
+        "Username can only contain lowercase letters, numbers, underscores, and periods",
+      );
     }
-    if (formData.username.trim().length < 3 || formData.username.trim().length > 30) {
+    if (
+      formData.username.trim().length < 3 ||
+      formData.username.trim().length > 30
+    ) {
       return toast.error("Username must be between 3 and 30 characters");
     }
     if (!formData.password) return toast.error("Password is required");
     if (formData.password.length < MIN_PASSWORD_LENGTH) {
-      return toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      return toast.error(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
     }
 
     return true;
@@ -79,7 +98,10 @@ export default function SignUpPageClient() {
 
       const verifiedUser = await verifySignupOtp({ email: pendingEmail, otp });
       if (verifiedUser) {
-        router.replace(inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath);
+        navigate(
+          inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath,
+          { replace: true },
+        );
       }
       return;
     }
@@ -105,15 +127,21 @@ export default function SignUpPageClient() {
               <div className="size-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <MessageSquare className="size-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mt-2 text-stone-950">Create Account</h1>
-              <p className="text-stone-500">Get started with your free account</p>
+              <h1 className="text-2xl font-bold mt-2 text-stone-950">
+                Create Account
+              </h1>
+              <p className="text-stone-500">
+                Get started with your free account
+              </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="form-control">
               <label className="label" htmlFor="fullName">
-                <span className="text-stone-700 font-medium text-sm">Full Name</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  Full Name
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -126,7 +154,10 @@ export default function SignUpPageClient() {
                   placeholder="John Doe"
                   value={formData.fullName}
                   onChange={(event) =>
-                    resetPendingVerification({ ...formData, fullName: event.target.value })
+                    resetPendingVerification({
+                      ...formData,
+                      fullName: event.target.value,
+                    })
                   }
                 />
               </div>
@@ -134,7 +165,9 @@ export default function SignUpPageClient() {
 
             <div className="form-control">
               <label className="label" htmlFor="email">
-                <span className="text-stone-700 font-medium text-sm">Email</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  Email
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -147,7 +180,10 @@ export default function SignUpPageClient() {
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={(event) =>
-                    resetPendingVerification({ ...formData, email: event.target.value })
+                    resetPendingVerification({
+                      ...formData,
+                      email: event.target.value,
+                    })
                   }
                 />
               </div>
@@ -155,7 +191,9 @@ export default function SignUpPageClient() {
 
             <div className="form-control">
               <label className="label" htmlFor="username">
-                <span className="text-stone-700 font-medium text-sm">Username</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  Username
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -182,7 +220,9 @@ export default function SignUpPageClient() {
 
             <div className="form-control">
               <label className="label" htmlFor="password">
-                <span className="text-stone-700 font-medium text-sm">Password</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  Password
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -195,7 +235,10 @@ export default function SignUpPageClient() {
                   placeholder="Enter a strong password"
                   value={formData.password}
                   onChange={(event) =>
-                    resetPendingVerification({ ...formData, password: event.target.value })
+                    resetPendingVerification({
+                      ...formData,
+                      password: event.target.value,
+                    })
                   }
                 />
                 <button
@@ -218,12 +261,15 @@ export default function SignUpPageClient() {
             {pendingEmail && (
               <div className="space-y-3">
                 <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-stone-600">
-                  Verification code sent to {pendingEmail}. Enter it below to create your account.
+                  Verification code sent to {pendingEmail}. Enter it below to
+                  create your account.
                 </div>
 
                 <div className="form-control">
                   <label className="label" htmlFor="otp">
-                    <span className="text-stone-700 font-medium text-sm">Verification Code</span>
+                    <span className="text-stone-700 font-medium text-sm">
+                      Verification Code
+                    </span>
                   </label>
                   <input
                     id="otp"
@@ -257,14 +303,20 @@ export default function SignUpPageClient() {
               </div>
             )}
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isSigningUp}>
+            <button
+              type="submit"
+              className="btn btn-primary w-full"
+              disabled={isSigningUp}
+            >
               {isSigningUp ? (
                 <>
                   <Loader2 className="size-5 animate-spin" />
                   {pendingEmail ? "Creating..." : "Sending..."}
                 </>
+              ) : pendingEmail ? (
+                "Create Account"
               ) : (
-                pendingEmail ? "Create Account" : "Send Verification Code"
+                "Send Verification Code"
               )}
             </button>
           </form>
@@ -273,7 +325,11 @@ export default function SignUpPageClient() {
             <p className="text-stone-500">
               Already have an account?{" "}
               <Link
-                href={inviteCode ? `/login?invite=${encodeURIComponent(inviteCode)}` : "/login"}
+                href={
+                  inviteCode
+                    ? `/login?invite=${encodeURIComponent(inviteCode)}`
+                    : "/login"
+                }
                 className="link link-primary"
               >
                 Sign in

@@ -9,5 +9,5 @@ export default function ClientProviders() {
     document.documentElement.setAttribute("data-theme", savedTheme);
   }, []);
 
-  return <Toaster />;
+  return Toaster({});
 }

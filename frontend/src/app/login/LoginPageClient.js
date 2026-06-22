@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare } from "lucide-react";
 
 import AuthImagePattern from "@/components/AuthImagePattern";
@@ -17,7 +16,7 @@ const getSafeNextPath = (value) => {
 };
 
 export default function LoginPageClient() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const searchParams = useSearchParams();
   const inviteCode = searchParams.get("invite") || "";
   const nextPath = useMemo(
@@ -29,7 +28,8 @@ export default function LoginPageClient() {
     email: "",
     password: "",
   });
-  const { authUser, checkAuth, login, isLoggingIn, isCheckingAuth } = useAuthStore();
+  const { authUser, checkAuth, login, isLoggingIn, isCheckingAuth } =
+    useAuthStore();
 
   useEffect(() => {
     checkAuth();
@@ -37,15 +37,21 @@ export default function LoginPageClient() {
 
   useEffect(() => {
     if (!authUser) return;
-    router.replace(inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath);
-  }, [authUser, inviteCode, nextPath, router]);
+    navigate(
+      inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath,
+      { replace: true },
+    );
+  }, [authUser, inviteCode, nextPath, navigate]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const user = await login(formData);
 
     if (user) {
-      router.replace(inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath);
+      navigate(
+        inviteCode ? `/invite/${encodeURIComponent(inviteCode)}` : nextPath,
+        { replace: true },
+      );
     }
   };
 
@@ -58,7 +64,9 @@ export default function LoginPageClient() {
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <MessageSquare className="w-6 h-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mt-2 text-stone-950">Welcome Back</h1>
+              <h1 className="text-2xl font-bold mt-2 text-stone-950">
+                Welcome Back
+              </h1>
               <p className="text-stone-500">Sign in to your account</p>
             </div>
           </div>
@@ -66,7 +74,9 @@ export default function LoginPageClient() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="form-control">
               <label className="label" htmlFor="email">
-                <span className="text-stone-700 font-medium text-sm">Email</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  Email
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -87,8 +97,13 @@ export default function LoginPageClient() {
 
             <div className="form-control">
               <label className="label" htmlFor="password">
-                <span className="text-stone-700 font-medium text-sm">Password</span>
-                <Link href="/forgot-password" className="link link-primary text-xs">
+                <span className="text-stone-700 font-medium text-sm">
+                  Password
+                </span>
+                <Link
+                  href="/forgot-password"
+                  className="link link-primary text-xs"
+                >
                   Forgot password?
                 </Link>
               </label>
@@ -140,7 +155,11 @@ export default function LoginPageClient() {
             <p className="text-stone-500">
               Don&apos;t have an account?{" "}
               <Link
-                href={inviteCode ? `/signup?invite=${encodeURIComponent(inviteCode)}` : "/signup"}
+                href={
+                  inviteCode
+                    ? `/signup?invite=${encodeURIComponent(inviteCode)}`
+                    : "/signup"
+                }
                 className="link link-primary"
               >
                 Create account

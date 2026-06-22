@@ -1,10 +1,15 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
-import { FileText, Image as ImageIcon, Paperclip, RefreshCw, Send, X } from "lucide-react";
+import {
+  FileText,
+  Image as ImageIcon,
+  Paperclip,
+  RefreshCw,
+  Send,
+  X,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuthStore } from "../store/useAuthStore";
 import { SOCKET_EVENTS } from "../constants/socket.events";
@@ -79,7 +84,8 @@ const MessageInput = () => {
 
     socket.emit(SOCKET_EVENTS.TYPING_START, { conversationId });
 
-    if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+    if (typingStopTimeoutRef.current)
+      clearTimeout(typingStopTimeoutRef.current);
 
     typingStopTimeoutRef.current = setTimeout(() => {
       socket.emit(SOCKET_EVENTS.TYPING_STOP, { conversationId });
@@ -88,7 +94,8 @@ const MessageInput = () => {
 
   useEffect(() => {
     return () => {
-      if (typingStopTimeoutRef.current) clearTimeout(typingStopTimeoutRef.current);
+      if (typingStopTimeoutRef.current)
+        clearTimeout(typingStopTimeoutRef.current);
       emitTypingStop();
     };
   }, [emitTypingStop]);
@@ -111,7 +118,9 @@ const MessageInput = () => {
     const limit = FILE_SIZE_LIMITS[category];
 
     if (file.size > limit) {
-      toast.error(`${category === "image" ? "Image" : category === "video" ? "Video" : "Document"} must be ${FILE_SIZE_LABELS[category]} or less`);
+      toast.error(
+        `${category === "image" ? "Image" : category === "video" ? "Video" : "Document"} must be ${FILE_SIZE_LABELS[category]} or less`,
+      );
       return;
     }
 
@@ -205,7 +214,9 @@ const MessageInput = () => {
     }
   };
 
-  const fileCategory = uploadingFile ? getFileCategory(uploadingFile.type) : null;
+  const fileCategory = uploadingFile
+    ? getFileCategory(uploadingFile.type)
+    : null;
   const hasFile = Boolean(uploadingFile);
 
   return (
@@ -268,7 +279,9 @@ const MessageInput = () => {
                   max="100"
                 />
                 <span className="text-xs text-base-content/60">
-                  {uploadedAttachment ? "Uploaded" : `Uploading ${uploadProgress}%`}
+                  {uploadedAttachment
+                    ? "Uploaded"
+                    : `Uploading ${uploadProgress}%`}
                 </span>
               </div>
             )}
@@ -307,7 +320,11 @@ const MessageInput = () => {
         <button
           type="submit"
           className="btn btn-sm btn-circle"
-          disabled={(!text.trim() && !uploadedAttachment) || Boolean(uploadError) || (uploadingFile && !uploadedAttachment)}
+          disabled={
+            (!text.trim() && !uploadedAttachment) ||
+            Boolean(uploadError) ||
+            (uploadingFile && !uploadedAttachment)
+          }
         >
           <Send size={22} />
         </button>

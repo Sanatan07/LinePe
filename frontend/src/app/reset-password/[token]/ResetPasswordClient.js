@@ -1,15 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Loader2, Lock, MessageSquare } from "lucide-react";
 
 import AuthImagePattern from "@/components/AuthImagePattern";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export default function ResetPasswordClient({ token }) {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -23,7 +22,7 @@ export default function ResetPasswordClient({ token }) {
     event.preventDefault();
     if (password !== confirm) return;
     const ok = await resetPassword(token, password);
-    if (ok) router.replace("/login");
+    if (ok) navigate("/login", { replace: true });
   };
 
   return (
@@ -35,7 +34,9 @@ export default function ResetPasswordClient({ token }) {
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
                 <MessageSquare className="w-6 h-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold mt-2 text-stone-950">Set new password</h1>
+              <h1 className="text-2xl font-bold mt-2 text-stone-950">
+                Set new password
+              </h1>
               <p className="text-stone-500">Must be at least 12 characters.</p>
             </div>
           </div>
@@ -43,7 +44,9 @@ export default function ResetPasswordClient({ token }) {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="form-control">
               <label className="label" htmlFor="password">
-                <span className="text-stone-700 font-medium text-sm">New password</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  New password
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -72,13 +75,17 @@ export default function ResetPasswordClient({ token }) {
                 </button>
               </div>
               {tooShort && (
-                <p className="text-xs text-error mt-1">Password must be at least 12 characters.</p>
+                <p className="text-xs text-error mt-1">
+                  Password must be at least 12 characters.
+                </p>
               )}
             </div>
 
             <div className="form-control">
               <label className="label" htmlFor="confirm">
-                <span className="text-stone-700 font-medium text-sm">Confirm password</span>
+                <span className="text-stone-700 font-medium text-sm">
+                  Confirm password
+                </span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -106,14 +113,22 @@ export default function ResetPasswordClient({ token }) {
                 </button>
               </div>
               {mismatch && (
-                <p className="text-xs text-error mt-1">Passwords do not match.</p>
+                <p className="text-xs text-error mt-1">
+                  Passwords do not match.
+                </p>
               )}
             </div>
 
             <button
               type="submit"
               className="btn btn-primary w-full"
-              disabled={isResettingPassword || tooShort || mismatch || !password || !confirm}
+              disabled={
+                isResettingPassword ||
+                tooShort ||
+                mismatch ||
+                !password ||
+                !confirm
+              }
             >
               {isResettingPassword ? (
                 <>
