@@ -17,7 +17,7 @@ const getSafeNextPath = (value) => {
 
 export default function LoginPageClient() {
   const navigate = useNavigate();
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const inviteCode = searchParams.get("invite") || "";
   const nextPath = useMemo(
     () => getSafeNextPath(searchParams.get("next")),
@@ -101,7 +101,7 @@ export default function LoginPageClient() {
                   Password
                 </span>
                 <Link
-                  href="/forgot-password"
+                  to="/forgot-password"
                   className="link link-primary text-xs"
                 >
                   Forgot password?
@@ -155,7 +155,7 @@ export default function LoginPageClient() {
             <p className="text-stone-500">
               Don&apos;t have an account?{" "}
               <Link
-                href={
+                to={
                   inviteCode
                     ? `/signup?invite=${encodeURIComponent(inviteCode)}`
                     : "/signup"

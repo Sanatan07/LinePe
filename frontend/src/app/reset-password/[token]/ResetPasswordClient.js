@@ -142,7 +142,7 @@ export default function ResetPasswordClient({ token }) {
           </form>
 
           <div className="text-center">
-            <Link href="/login" className="link link-primary text-sm">
+            <Link to="/login" className="link link-primary text-sm">
               Back to sign in
             </Link>
           </div>

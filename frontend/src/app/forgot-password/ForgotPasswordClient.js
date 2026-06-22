@@ -44,7 +44,7 @@ export default function ForgotPasswordClient() {
                 If that address is registered you&apos;ll receive an email
                 within a minute. The link expires in 15&nbsp;minutes.
               </p>
-              <Link href="/login" className="btn btn-primary w-full">
+              <Link to="/login" className="btn btn-primary w-full">
                 Back to sign in
               </Link>
             </div>
@@ -90,7 +90,7 @@ export default function ForgotPasswordClient() {
           )}
 
           <div className="text-center">
-            <Link href="/login" className="link link-primary text-sm">
+            <Link to="/login" className="link link-primary text-sm">
               Back to sign in
             </Link>
           </div>
