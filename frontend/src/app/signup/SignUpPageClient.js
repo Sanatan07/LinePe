@@ -325,7 +325,7 @@ export default function SignUpPageClient() {
             <p className="text-stone-500">
               Already have an account?{" "}
               <Link
-                href={
+                to={
                   inviteCode
                     ? `/login?invite=${encodeURIComponent(inviteCode)}`
                     : "/login"
