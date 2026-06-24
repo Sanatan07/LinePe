@@ -57,19 +57,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5000
-      CLIENT_URL: http://localhost:5000
-      CLIENT_URLS: http://localhost:5000
-      COOKIE_SAME_SITE: lax
-      COOKIE_SECURE: "false"
-      MONGODB_URI: mongodb://mongo:27017/linepe
+      CLIENT_URL: https://line-pe.vercel.app
+      CLIENT_URLS: https://line-pe.vercel.app
+      COOKIE_SAME_SITE: none
+      COOKIE_SECURE: "true"
+      MONGODB_URI: mongodb://User1ChatApp:aJ1FgrfQdIubwDfM@ac-hvaxzbh-shard-00-00.ae3j1lu.mongodb.net:27017,ac-hvaxzbh-shard-00-01.ae3j1lu.mongodb.net:27017,ac-hvaxzbh-shard-00-02.ae3j1lu.mongodb.net:27017/?ssl=true&replicaSet=atlas-ksez5y-shard-0&authSource=admin&appName=Cluster0
       REDIS_URL: redis://redis:6379
       POSTGRES_URL: postgres://linepe:linepe@postgres:5432/linepe
-      JWT_SECRET: change-me-access-secret
-      JWT_REFRESH_SECRET: change-me-refresh-secret
-      INVITE_BASE_URL: http://localhost:5000
-      CLOUDINARY_CLOUD_NAME: demo
-      CLOUDINARY_API_KEY: demo
-      CLOUDINARY_API_SECRET: demo
+      JWT_SECRET: 78c2405623cf5315ab2e92662cf58b3907619dd9bfbc97a8b2a2f20f55e606b6e48e1e1bb7a826080b50c72257ff0707
+      JWT_REFRESH_SECRET: 7f77d3e9a0a7fc9faa329ed137b5b8908b2970b35b6786022120b4e8a8e5fe575457a9ab2dc514a830a53b1cf1332a3d
+      INVITE_BASE_URL: https://line-pe.vercel.app
+      CLOUDINARY_CLOUD_NAME: dhkfqjanp
+      CLOUDINARY_API_KEY: 652881119622149
+      CLOUDINARY_API_SECRET: d7SmMSsj4q5kShuIHuiATncOj1w
     ports:
       - "5000:5000"
 
