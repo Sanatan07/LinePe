@@ -7,10 +7,11 @@ import { axiosInstance } from "../lib/axios.js";
 
 const SESSION_HINT_KEY = "linepe.hasSession";
 
+// Use environment variables for the socket URL. Fallback to localhost only in dev when none are set.
 const BASE_URL =
   import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_API_ORIGIN ||
-  "http://localhost:5000";
+  (import.meta.env.DEV ? "http://localhost:5000" : "");
 
 const setSessionHint = () => {
   if (typeof window !== "undefined") {

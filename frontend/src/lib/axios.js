@@ -1,17 +1,18 @@
 import axios from "axios";
 
 const getApiBaseUrl = () => {
-  const explicitBaseUrl =
-    import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
-
+  // Prefer an explicit API URL if provided.
+  const explicitBaseUrl = import.meta.env.VITE_API_URL;
   if (explicitBaseUrl) {
     return explicitBaseUrl.replace(/\/+$/, "");
   }
 
+  // Otherwise build from the API origin. In development we fall back to localhost.
   const origin = (
-    import.meta.env.VITE_API_ORIGIN || "http://localhost:5000"
+    import.meta.env.VITE_API_ORIGIN ||
+    (import.meta.env.DEV ? "http://localhost:5000" : "")
   ).replace(/\/+$/, "");
-  return origin.endsWith("/api") ? origin : `${origin}/api`;
+  return origin ? (origin.endsWith("/api") ? origin : `${origin}/api`) : "";
 };
 
 const apiBaseUrl = getApiBaseUrl();
