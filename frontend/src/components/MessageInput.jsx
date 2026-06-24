@@ -15,7 +15,6 @@ import { useAuthStore } from "../store/useAuthStore";
 import { SOCKET_EVENTS } from "../constants/socket.events";
 import { axiosInstance } from "../lib/axios";
 
-const MAX_MESSAGE_LENGTH = 2000;
 const ZERO_WIDTH_REGEX = /[​-‍﻿]/g;
 
 const FILE_SIZE_LIMITS = {
@@ -65,9 +64,17 @@ const MessageInput = () => {
   const [uploadingFile, setUploadingFile] = useState(null);
   const [uploadAttempt, setUploadAttempt] = useState(0);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
   const { sendMessage, selectedConversation } = useChatStore();
   const { socket } = useAuthStore();
   const typingStopTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.max(40, textarea.scrollHeight)}px`;
+  }, [text]);
 
   const emitTypingStop = useCallback(() => {
     const conversationId = selectedConversation?._id;
@@ -76,7 +83,7 @@ const MessageInput = () => {
   }, [selectedConversation?._id, socket]);
 
   const handleTyping = (e) => {
-    const next = sanitizePlainText(e.target.value).slice(0, MAX_MESSAGE_LENGTH);
+    const next = sanitizePlainText(e.target.value);
     setText(next);
 
     const conversationId = selectedConversation?._id;
@@ -189,11 +196,6 @@ const MessageInput = () => {
 
     if (!trimmedText && !uploadedAttachment) return;
 
-    if (trimmedText.length > MAX_MESSAGE_LENGTH) {
-      toast.error(`Message must be ${MAX_MESSAGE_LENGTH} characters or less`);
-      return;
-    }
-
     if (uploadingFile && !uploadedAttachment) {
       toast.error("Please wait for the upload to finish");
       return;
@@ -291,14 +293,20 @@ const MessageInput = () => {
 
       <form onSubmit={handleSendMessage} className="flex items-center gap-2">
         <div className="flex-1 flex gap-2">
-          <input
-            type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
+          <textarea
+            ref={textareaRef}
+            className="w-full textarea textarea-bordered rounded-lg textarea-sm sm:textarea-md min-h-[40px] max-h-[120px] resize-none py-2 text-base-content"
             placeholder="Type a message..."
             value={text}
-            maxLength={MAX_MESSAGE_LENGTH}
             onChange={handleTyping}
             onBlur={emitTypingStop}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSendMessage(e);
+              }
+            }}
+            rows={1}
           />
           <input
             type="file"

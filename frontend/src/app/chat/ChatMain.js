@@ -6,6 +6,8 @@ import toast from "react-hot-toast";
 
 import ChatContainer from "@/components/ChatContainer";
 import NoChatSelected from "@/components/NoChatSelected";
+import Sidebar from "@/components/Sidebar";
+import NavBar from "@/components/NavBar";
 import { SOCKET_EVENTS } from "@/constants/socket.events";
 import { requestNotificationPermission } from "@/lib/notifications";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -21,7 +23,7 @@ export default function ChatMain() {
     unsubscribeFromMessages,
   } = useChatStore();
 
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const inviteHandled = useRef(false);
 
@@ -73,5 +75,23 @@ export default function ChatMain() {
     };
   }, [socket, socket?.connected, selectedConversation?._id]);
 
-  return selectedConversation ? <ChatContainer /> : <NoChatSelected />;
+  return (
+    <div className="h-screen bg-base-200 chat-page-container">
+      <style>{`
+        .chat-page-container, .chat-page-container * {
+          color: #a855f7 !important;
+        }
+      `}</style>
+      <NavBar />
+      <div className="flex items-center justify-center pt-20 px-4">
+        <div className="bg-base-100 rounded-lg shadow-xl w-full max-w-6xl h-[calc(100vh-8rem)]">
+          <div className="flex h-full rounded-lg overflow-hidden">
+            <Sidebar />
+
+            {!selectedConversation ? <NoChatSelected /> : <ChatContainer />}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

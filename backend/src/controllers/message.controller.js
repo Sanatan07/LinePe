@@ -12,10 +12,9 @@ import { logger } from "../lib/logger.js";
 import { incrementMetric } from "../lib/metrics.js";
 import { applyMessageLifecycleStatus } from "../lib/message-lifecycle.js";
 
-const MAX_TEXT_LENGTH = 2000;
 const MAX_CLIENT_MESSAGE_ID_LENGTH = 120;
 
-const normalizeText = (text) => sanitizePlainText(text, { maxLength: MAX_TEXT_LENGTH });
+const normalizeText = (text) => sanitizePlainText(text);
 
 const isValidImagePayload = (image) => typeof image === "string" && image.startsWith("data:image/");
 
@@ -79,12 +78,6 @@ const buildMessagePayload = async ({
 
   if (!normalizedText && !hasImage && !hasAttachments) {
     const error = new Error("Message text or attachment is required");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (typeof text === "string" && text.trim().length > MAX_TEXT_LENGTH) {
-    const error = new Error(`Message must be ${MAX_TEXT_LENGTH} characters or less`);
     error.statusCode = 400;
     throw error;
   }
@@ -321,11 +314,6 @@ export const sendMessage = async (req, res) => {
 
     if (!normalizedText && !hasImage && !hasAttachments) {
       return res.status(400).json({ message: "Message text or attachment is required" });
-    }
-
-    // `normalizeText` already trims + clamps max length; reject if caller tries to exceed limit.
-    if (typeof text === "string" && text.trim().length > MAX_TEXT_LENGTH) {
-      return res.status(400).json({ message: `Message must be ${MAX_TEXT_LENGTH} characters or less` });
     }
 
     const nextAttachments = [];

@@ -14,7 +14,7 @@ import { sendEmail } from "../lib/email.js";
 import { logger } from "../lib/logger.js";
 import { recordAuditLog } from "../lib/audit-log.js";
 import { consumePendingSignup, createPendingSignup } from "../lib/signup-otp.store.js";
-import { ensureUserHasUsername, syncRegisteredUser } from "../lib/account-registry.js";
+import { ensureUserHasUsername } from "../lib/account-registry.js";
 import { sanitizePlainText } from "../lib/sanitize.js";
 import { enqueueNotification } from "../lib/queue.js";
 import User from "../models/user.model.js";
@@ -372,7 +372,6 @@ export const verifySignupOtp = async (req, res, next) => {
     newUser.emailVerificationToken = "";
     newUser.emailVerificationExpires = null;
     await newUser.save();
-    await syncRegisteredUser(newUser);
 
     const tokens = generateAuthTokens({
       userId: newUser._id,
@@ -464,7 +463,6 @@ export const login = async (req, res, next) => {
     const tokens = generateAuthTokens({ userId: user._id, tokenVersion: user.tokenVersion });
     await addRefreshSession(user, tokens, req);
     setAuthCookies(res, tokens);
-    await syncRegisteredUser(user);
     recordAuditLog({
       req,
       type: "auth",
@@ -748,7 +746,6 @@ export const updateProfile = async (req, res, next) => {
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
-    await syncRegisteredUser(updatedUser);
 
     res.status(200).json(updatedUser);
   } catch (error) {
@@ -765,7 +762,6 @@ export const updateProfile = async (req, res, next) => {
 export const checkAuth = async (req, res, next) => {
   try {
     const user = await ensureUserHasUsername(req.user);
-    await syncRegisteredUser(user);
     res.status(200).json(sanitizeUser(user));
   } catch (error) {
     next(error);

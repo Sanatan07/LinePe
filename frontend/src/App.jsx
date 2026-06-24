@@ -7,7 +7,7 @@ import {
   Routes,
   useParams,
 } from "react-router-dom";
-import { ArrowRight, MessageSquare, Shield, Users } from "lucide-react";
+import { ArrowRight, MessageSquare, Palette, Shield, Users } from "lucide-react";
 
 import ClientProviders from "./app/ClientProviders.js";
 import ChatMain from "./app/chat/ChatMain.js";
@@ -15,7 +15,11 @@ import ForgotPasswordClient from "./app/forgot-password/ForgotPasswordClient.js"
 import LoginPageClient from "./app/login/LoginPageClient.js";
 import ResetPasswordClient from "./app/reset-password/[token]/ResetPasswordClient.js";
 import SignUpPageClient from "./app/signup/SignUpPageClient.js";
+import ProfilePageClient from "./app/profile/ProfilePageClient.js";
+import SettingsPageClient from "./app/settings/SettingsPageClient.js";
 import { useAuthStore } from "./store/useAuthStore.js";
+import { useThemeStore } from "./store/useThemeStore.js";
+import { THEMES } from "./constants/index.js";
 
 function AppBootstrap() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
@@ -25,6 +29,43 @@ function AppBootstrap() {
   }, [checkAuth]);
 
   return null;
+}
+
+function ThemeDropdown() {
+  const { theme, setTheme } = useThemeStore();
+
+  return (
+    <div className="dropdown dropdown-end">
+      <button
+        tabIndex={0}
+        aria-label="Select theme"
+        className="flex size-9 items-center justify-center rounded-md text-stone-600 hover:bg-stone-200/70 hover:text-stone-950 dark:text-stone-400 dark:hover:bg-stone-700 dark:hover:text-stone-50 transition-colors"
+      >
+        <Palette className="size-5" />
+      </button>
+      <ul
+        tabIndex={0}
+        className="dropdown-content menu bg-base-100 rounded-box z-50 w-52 p-2 shadow-2xl border border-base-300 max-h-80 overflow-y-auto text-base-content"
+      >
+        {THEMES.map((t) => (
+          <li key={t}>
+            <button
+              onClick={() => setTheme(t)}
+              className={`flex items-center justify-between ${theme === t ? "active" : ""}`}
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+              <span className="flex gap-0.5" data-theme={t}>
+                <span className="w-2 h-4 rounded-full bg-primary" />
+                <span className="w-2 h-4 rounded-full bg-secondary" />
+                <span className="w-2 h-4 rounded-full bg-accent" />
+                <span className="w-2 h-4 rounded-full bg-neutral" />
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function LandingPage() {
@@ -44,25 +85,26 @@ function LandingPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-stone-50 text-stone-950 dark:bg-stone-950 dark:text-stone-50">
-      <header className="border-b border-stone-200 bg-white/90 backdrop-blur dark:border-stone-800 dark:bg-stone-950/90">
+    <main className="min-h-screen bg-base-200 text-base-content">
+      <header className="border-b border-base-300 bg-base-100/90 backdrop-blur">
         <nav className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-5 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-md bg-stone-950 text-sm font-bold text-white dark:bg-stone-100 dark:text-stone-950">
+            <span className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-content">
               L
             </span>
-            <span className="text-lg font-bold">LinePe</span>
+            <span className="text-lg font-bold text-base-content">LinePe</span>
           </Link>
           <div className="flex items-center gap-2">
+            <ThemeDropdown />
             <Link
               to="/login"
-              className="rounded-md px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-200 dark:text-stone-300 dark:hover:bg-stone-800"
+              className="rounded-md px-3 py-2 text-sm font-semibold text-base-content/85 hover:bg-base-300"
             >
               Sign in
             </Link>
             <Link
               to="/signup"
-              className="rounded-md bg-stone-950 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950"
+              className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-content hover:opacity-90"
             >
               Create account
             </Link>
@@ -72,13 +114,13 @@ function LandingPage() {
 
       <section className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-6xl gap-10 px-5 py-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
         <div>
-          <p className="inline-flex items-center gap-2 rounded-full border border-stone-300 bg-white px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-stone-600 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-400">
+          <p className="inline-flex items-center gap-2 rounded-full border border-base-300 bg-base-100 px-4 py-2 text-xs font-bold uppercase tracking-[0.2em] text-base-content/70">
             <Shield className="size-3.5" /> Secure direct messaging
           </p>
-          <h1 className="mt-6 max-w-xl text-5xl font-black leading-[1.02] sm:text-6xl">
+          <h1 className="mt-6 max-w-xl text-5xl font-black leading-[1.02] sm:text-6xl text-base-content">
             LinePe keeps private chat fast, clean, and simple.
           </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-stone-700 dark:text-stone-300">
+          <p className="mt-5 max-w-xl text-lg leading-8 text-base-content/80">
             A React single-page client for signup, login, invites, and live
             messaging.
           </p>
@@ -86,13 +128,13 @@ function LandingPage() {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               to="/signup"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-stone-950 px-5 text-sm font-bold text-white hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-bold text-primary-content hover:opacity-90"
             >
               Get started <ArrowRight className="size-4" />
             </Link>
             <Link
               to="/login"
-              className="inline-flex h-12 items-center justify-center rounded-md border border-stone-300 bg-white px-5 text-sm font-bold text-stone-950 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-100"
+              className="inline-flex h-12 items-center justify-center rounded-md border border-base-300 bg-base-100 px-5 text-sm font-bold text-base-content hover:bg-base-200"
             >
               Sign in
             </Link>
@@ -102,13 +144,13 @@ function LandingPage() {
             {features.map((feature) => (
               <div
                 key={feature.title}
-                className="rounded-lg border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900"
+                className="rounded-lg border border-base-300 bg-base-100 p-4"
               >
-                <div className="flex items-center gap-2 text-sm font-bold">
-                  <MessageSquare className="size-4 text-stone-500" />{" "}
+                <div className="flex items-center gap-2 text-sm font-bold text-base-content">
+                  <MessageSquare className="size-4 text-primary" />{" "}
                   {feature.title}
                 </div>
-                <p className="mt-2 text-sm leading-6 text-stone-600 dark:text-stone-400">
+                <p className="mt-2 text-sm leading-6 text-base-content/70">
                   {feature.description}
                 </p>
               </div>
@@ -116,24 +158,24 @@ function LandingPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-2xl shadow-stone-900/10 dark:border-stone-800 dark:bg-stone-900">
-          <div className="flex items-center justify-between border-b border-stone-200 pb-4 dark:border-stone-800">
+        <div className="rounded-2xl border border-base-300 bg-base-100 p-5 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-base-300 pb-4">
             <div>
-              <p className="text-sm font-bold uppercase text-stone-500">
+              <p className="text-sm font-bold uppercase text-base-content/60">
                 Preview
               </p>
-              <h2 className="text-lg font-black">Chat workspace</h2>
+              <h2 className="text-lg font-black text-base-content">Chat workspace</h2>
             </div>
-            <Users className="size-5 text-stone-500" />
+            <Users className="size-5 text-base-content/60" />
           </div>
           <div className="mt-5 space-y-4">
-            <div className="max-w-[78%] rounded-2xl rounded-tl-md bg-stone-100 p-4 text-sm text-stone-700 dark:bg-stone-800 dark:text-stone-200">
+            <div className="max-w-[78%] rounded-2xl rounded-tl-md bg-base-200 p-4 text-sm text-base-content/85">
               Ready to move off Next and back to a plain React app.
             </div>
-            <div className="ml-auto max-w-[75%] rounded-2xl rounded-tr-md bg-stone-950 p-4 text-sm text-white dark:bg-stone-100 dark:text-stone-950">
+            <div className="ml-auto max-w-[75%] rounded-2xl rounded-tr-md bg-primary p-4 text-sm text-primary-content shadow-md">
               The auth flow now uses React Router and Vite env vars.
             </div>
-            <div className="max-w-[85%] rounded-2xl rounded-tl-md border border-dashed border-stone-300 p-4 text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400">
+            <div className="max-w-[85%] rounded-2xl rounded-tl-md border border-dashed border-base-300 p-4 text-sm text-base-content/70">
               Login, signup, forgot password, and chat routes are available.
             </div>
           </div>
@@ -188,6 +230,25 @@ function ProtectedChatRoute() {
   return <ChatMain />;
 }
 
+function ProtectedProfileRoute() {
+  const authUser = useAuthStore((state) => state.authUser);
+  const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
+
+  if (isCheckingAuth) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950">
+        Loading...
+      </main>
+    );
+  }
+
+  if (!authUser) {
+    return <Navigate to="/login?next=/profile" replace />;
+  }
+
+  return <ProfilePageClient />;
+}
+
 function StubPage({ title, description }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-stone-50 px-5 text-stone-950 dark:bg-stone-950 dark:text-stone-50">
@@ -220,24 +281,8 @@ export default function App() {
         <Route path="/reset-password/:token" element={<ResetPasswordRoute />} />
         <Route path="/invite/:token" element={<InviteRoute />} />
         <Route path="/chat" element={<ProtectedChatRoute />} />
-        <Route
-          path="/profile"
-          element={
-            <StubPage
-              title="Profile"
-              description="Profile screens can be re-added after the migration."
-            />
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <StubPage
-              title="Settings"
-              description="Settings screens can be re-added after the migration."
-            />
-          }
-        />
+        <Route path="/profile" element={<ProtectedProfileRoute />} />
+        <Route path="/settings" element={<SettingsPageClient />} />
         <Route
           path="/audit"
           element={

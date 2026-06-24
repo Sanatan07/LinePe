@@ -1,13 +1,6 @@
 "use client";
 
 import {
-  Archive,
-  BellOff,
-  BellRing,
-  EyeOff,
-  Pin,
-  PinOff,
-  Shield,
   Trash2,
   X,
 } from "lucide-react";
@@ -69,85 +62,11 @@ const ChatHeader = () => {
               Manage
             </button>
             <ul className="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow border border-base-300">
-              <li>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConversationFlag({
-                      conversationId: selectedConversation._id,
-                      flag: "mute",
-                      enabled: !conversation?.muted,
-                    })
-                  }
-                >
-                  {conversation?.muted ? (
-                    <BellRing className="size-4" />
-                  ) : (
-                    <BellOff className="size-4" />
-                  )}
-                  {conversation?.muted ? "Unmute" : "Mute"}
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConversationFlag({
-                      conversationId: selectedConversation._id,
-                      flag: "pin",
-                      enabled: !conversation?.pinned,
-                    })
-                  }
-                >
-                  {conversation?.pinned ? (
-                    <PinOff className="size-4" />
-                  ) : (
-                    <Pin className="size-4" />
-                  )}
-                  {conversation?.pinned ? "Unpin" : "Pin"}
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConversationFlag({
-                      conversationId: selectedConversation._id,
-                      flag: "archive",
-                      enabled: !conversation?.archived,
-                    })
-                  }
-                >
-                  <Archive className="size-4" />
-                  {conversation?.archived ? "Unarchive" : "Archive"}
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setConversationFlag({
-                      conversationId: selectedConversation._id,
-                      flag: "hide",
-                      enabled: true,
-                    })
-                  }
-                >
-                  <EyeOff className="size-4" />
-                  Hide
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setBlockStatus({ userId: participant?._id, enabled: true })
-                  }
-                >
-                  <Shield className="size-4" />
-                  Block
-                </button>
-              </li>
+
+
+
+
+
               <li>
                 <button
                   type="button"

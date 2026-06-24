@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 const getSavedTheme = () =>
-  typeof window === "undefined" ? "light" : localStorage.getItem("chat-theme") || "light";
+  typeof window === "undefined" ? "retro" : localStorage.getItem("chat-theme") || "retro";
 
 export const useThemeStore = create((set) => ({
   theme: getSavedTheme(),

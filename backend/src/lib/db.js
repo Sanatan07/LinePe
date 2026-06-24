@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { logger } from "./logger.js";
-import { connectPostgres } from "./postgres.js";
 
 export const connectDB = async () => {
   try {
@@ -15,6 +14,4 @@ export const connectDB = async () => {
     logger.error("db.mongo.connection_failed", { error });
     return;
   }
-
-  await connectPostgres();
 };

@@ -28,7 +28,7 @@ const getSafeNextPath = (value) => {
 
 export default function SignUpPageClient() {
   const navigate = useNavigate();
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const inviteCode = searchParams.get("invite") || "";
   const nextPath = useMemo(
     () => getSafeNextPath(searchParams.get("next")),

@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "migrate:users:postgres": "node src/scripts/migrate-users-to-postgres.js",
     "migrate:remove-groups": "node src/scripts/remove-group-conversations.js",
     "seed:users": "node src/seeds/user.seed.js",
     "seed:admin": "node src/seeds/admin.seed.js",
@@ -31,7 +30,6 @@
     "mongoose": "^9.2.4",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.5",
-    "pg": "^8.13.1",
     "redis": "^5.12.1",
     "socket.io": "^4.8.3"
   },

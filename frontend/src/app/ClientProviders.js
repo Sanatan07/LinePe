@@ -5,7 +5,7 @@ import { Toaster } from "react-hot-toast";
 
 export default function ClientProviders() {
   useEffect(() => {
-    const savedTheme = localStorage.getItem("chat-theme") || "light";
+    const savedTheme = localStorage.getItem("chat-theme") || "retro";
     document.documentElement.setAttribute("data-theme", savedTheme);
   }, []);
 
